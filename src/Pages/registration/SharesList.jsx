@@ -1,72 +1,30 @@
 // src/Pages/shares/SharesList.jsx
 import { useState, useEffect } from "react";
 import { formatIndianCurrency } from "../../utils/formHelpers";
+import { fetchShareAllocations } from "../../services/shareService";
 
 export default function SharesList() {
-  const [loading] = useState(false); // <--- FIXED: state declared here
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [sharesRecords, setSharesRecords] = useState([]);
 
-  const [sharesRecords, setSharesRecords] = useState([
-    {
-      id: 1,
-      folioNumber: "FOLIO-2026-001",
-      memberName: "Vivek Arun Deore",
-      shareType: "Ordinary Shares",
-      numberOfShares: 10,
-      faceValue: 1000,
-      totalAmount: 10000,
-      paymentMode: "UPI",
-      referenceNumber: "UPI/2026/839201",
-      applicationDate: "2026-09-24",
-      status: "Approved",
-    },
-    {
-      id: 2,
-      folioNumber: "FOLIO-2026-002",
-      memberName: "Aarav Sharma",
-      shareType: "Preference Shares",
-      numberOfShares: 5,
-      faceValue: 1000,
-      totalAmount: 5000,
-      paymentMode: "Bank Transfer",
-      referenceNumber: "TXN9382019283",
-      applicationDate: "2026-09-20",
-      status: "Approved",
-    },
-    {
-      id: 3,
-      folioNumber: "FOLIO-2026-003",
-      memberName: "Priya Patil",
-      shareType: "Founder Shares",
-      numberOfShares: 20,
-      faceValue: 1000,
-      totalAmount: 20000,
-      paymentMode: "Cheque",
-      referenceNumber: "CHQ-004829",
-      applicationDate: "2026-09-15",
-      status: "Pending Review",
-    },
-  ]);
-
-  // Fetch live records from Spring Boot backend if available
- // Fetch live records from Spring Boot backend safely without synchronous state warnings
   useEffect(() => {
     let isMounted = true;
-    
-    fetch('http://localhost:8080/api/shares')
-      .then(res => res.json())
-      .then(data => {
-        if (isMounted && Array.isArray(data) && data.length > 0) {
-          setSharesRecords(data);
-        }
+    fetchShareAllocations()
+      .then((records) => {
+        if (isMounted) setSharesRecords(records);
       })
-      .catch(err => console.error("Error fetching shares:", err));
+      .catch((error) => {
+        if (isMounted) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
   const totalSharesCount = sharesRecords.reduce((sum, s) => sum + (Number(s.numberOfShares) || 0), 0);
-  const totalCapitalPool = sharesRecords.reduce((sum, s) => sum + (Number(s.totalAmount) || (Number(s.numberOfShares) * Number(s.faceValue || 1000))), 0);
+  const totalCapitalPool = sharesRecords.reduce((sum, s) => sum + (Number(s.paymentAmount) || 0), 0);
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans">
@@ -109,12 +67,12 @@ export default function SharesList() {
             {sharesRecords.length > 0 ? (
               sharesRecords.map((record) => {
                 const qty = Number(record.numberOfShares) || 1;
-                const fv = Number(record.faceValue) || 1000;
-                const amt = record.totalAmount || (qty * fv);
+                const fv = Number(record.faceValue) || 0;
+                const amt = Number(record.paymentAmount) || 0;
                 
                 return (
-                  <tr key={record.id || record.folioNumber} className="hover:bg-slate-50 transition">
-                    <td className="p-3 font-mono font-bold text-slate-800">{record.folioNumber}</td>
+                  <tr key={record.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3 font-mono font-bold text-slate-800">{record.memberId}</td>
                     <td className="p-3 font-bold text-slate-900">{record.memberName || record.user || "Member"}</td>
                     <td className="p-3 text-slate-700 font-semibold">{record.shareType || "Ordinary Shares"}</td>
                     <td className="p-3 text-slate-900 font-bold">{qty}</td>
@@ -138,7 +96,7 @@ export default function SharesList() {
             ) : (
               <tr>
                 <td colSpan="10" className="p-6 text-center text-slate-400">
-                  {loading ? "Loading shares records from database..." : "No shares records found."}
+                  {loading ? "Loading shares records from database..." : loadError || "No shares records found."}
                 </td>
               </tr>
             )}

@@ -1,19 +1,29 @@
 // src/Pages/registration/List.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NotificationModal from "../../Components/NotificationModel";
+import { fetchMembers } from "../../services/memberService";
 
 export default function List() {
+  const [members, setMembers] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
 
   // Filter states
-  const [filterType, setFilterType] = useState("All");
   const [filterTimeframe, setFilterTimeframe] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState("All");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("All");
   const [filterUser, setFilterUser] = useState("All");
   const [filterMessageType, setFilterMessageType] = useState("All");
+
+  useEffect(() => {
+    fetchMembers().then(setMembers).catch((error) => console.error("Could not load member IDs:", error));
+  }, []);
+
+  const memberIdsByName = new Map(
+    members.map((member) => [member.fullName?.trim().toLocaleLowerCase(), member.id]),
+  );
+  const getMemberId = (name) => memberIdsByName.get(name.trim().toLocaleLowerCase()) || "-";
 
   // Sample transaction/member records
   const [records] = useState([
@@ -81,7 +91,6 @@ export default function List() {
 
   // Filter logic
   const filteredRecords = records.filter((item) => {
-    if (filterType !== "All" && item.type !== filterType) return false;
     if (filterPaymentStatus !== "All" && item.paymentStatus !== filterPaymentStatus) return false;
     if (filterPaymentMethod !== "All" && item.paymentMethod !== filterPaymentMethod) return false;
     if (filterCategory !== "All" && !item.category.includes(filterCategory)) return false;
@@ -99,16 +108,6 @@ export default function List() {
       {/* Filter Control Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
         
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="p-2 border border-slate-300 rounded-md bg-white text-xs font-semibold text-slate-700 outline-none"
-        >
-          <option value="All">Type (Income/Expense)</option>
-          <option value="Income">Income</option>
-          <option value="Expense">Expense</option>
-        </select>
-
         <select
           value={filterTimeframe}
           onChange={(e) => setFilterTimeframe(e.target.value)}
@@ -133,6 +132,17 @@ export default function List() {
         </select>
 
         <select
+          value={filterPaymentStatus}
+          onChange={(e) => setFilterPaymentStatus(e.target.value)}
+          className="p-2 border border-slate-300 rounded-md bg-white text-xs font-semibold text-slate-700 outline-none"
+        >
+          <option value="All">Payment Status</option>
+          <option value="Complete">Complete</option>
+          <option value="Pending">Pending</option>
+          <option value="Refunded">Refunded</option>
+        </select>
+
+        <select
           value={filterPaymentMethod}
           onChange={(e) => setFilterPaymentMethod(e.target.value)}
           className="p-2 border border-slate-300 rounded-md bg-white text-xs font-semibold text-slate-700 outline-none"
@@ -142,17 +152,6 @@ export default function List() {
           <option value="UPI">UPI</option>
           <option value="Bank Transfer">Bank Transfer</option>
           <option value="Cheque">Cheque</option>
-        </select>
-
-        <select
-          value={filterPaymentStatus}
-          onChange={(e) => setFilterPaymentStatus(e.target.value)}
-          className="p-2 border border-slate-300 rounded-md bg-white text-xs font-semibold text-slate-700 outline-none"
-        >
-          <option value="All">Payment Status</option>
-          <option value="Complete">Complete</option>
-          <option value="Pending">Pending</option>
-          <option value="Refunded">Refunded</option>
         </select>
 
         <input
@@ -208,6 +207,7 @@ export default function List() {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <th className="p-3">User ID</th>
               <th className="p-3">User</th>
               <th className="p-3">Type &amp; Category</th>
               <th className="p-3">Date</th>
@@ -226,6 +226,7 @@ export default function List() {
                   onClick={() => setSelectedMember(record)}
                   className="hover:bg-teal-50/50 cursor-pointer transition"
                 >
+                  <td className="p-3 font-mono font-semibold text-slate-700">{getMemberId(record.user)}</td>
                   <td className="p-3 font-bold text-slate-900">{record.user}</td>
                   <td className="p-3 text-slate-600">
                     <span className="font-semibold text-slate-800">{record.type}</span> / {record.category}
@@ -307,6 +308,10 @@ export default function List() {
 
             {/* Detailed Transaction & Due Info */}
             <div className="space-y-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200 text-xs mb-6">
+              <div className="flex justify-between py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Member User ID:</span>
+                <span className="font-mono font-bold text-slate-800">{getMemberId(selectedMember.user)}</span>
+              </div>
               <div className="flex justify-between py-1 border-b border-slate-200/60">
                 <span className="text-slate-500">Payment Status:</span>
                 <span className="font-bold text-slate-800 uppercase">{selectedMember.paymentStatus}</span>

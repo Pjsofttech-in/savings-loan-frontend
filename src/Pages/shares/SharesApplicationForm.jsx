@@ -3,14 +3,18 @@
 import { useState } from "react";
 import { FormField, SelectField, FormSection } from "../registration/RegistrationFields";
 import { formatIndianCurrency } from "../../utils/formHelpers";
+import { getRegistrationSettings } from "../../services/settingsService";
+import { fetchMemberById } from "../../services/memberService";
+import { createShareAllocation } from "../../services/shareService";
 
 export default function SharesApplicationForm() {
+  const [registrationSettings] = useState(getRegistrationSettings);
   const [form, setForm] = useState({
     folioNumber: "",
     applicationDate: new Date().toISOString().split('T')[0],
-    shareType: "Ordinary Shares",
+    shareType: registrationSettings.shareTypes[0] || "",
     numberOfShares: "",
-    faceValue: "1000.00",
+    faceValue: "",
     paymentStatus: "Complete",
     dueDate: "",
     paymentMode: "Bank Transfer",
@@ -19,6 +23,12 @@ export default function SharesApplicationForm() {
 
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [isLookingUpMember, setIsLookingUpMember] = useState(false);
+  const [memberLookupError, setMemberLookupError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
+  const [allocationId, setAllocationId] = useState(null);
 
   const updateField = (field, value) => {
     setForm((prev) => ({
@@ -32,11 +42,37 @@ export default function SharesApplicationForm() {
 
   const totalShareAmount = (Number(form.numberOfShares) || 0) * (Number(form.faceValue) || 0);
 
-  const handleSubmit = (e) => {
+  const lookupMember = async (memberId) => {
+    const normalizedId = memberId.trim();
+    setMemberLookupError("");
+    if (!normalizedId) {
+      setSelectedMember(null);
+      return;
+    }
+    if (!/^\d+$/.test(normalizedId)) {
+      setSelectedMember(null);
+      setMemberLookupError("Enter a numeric member user ID.");
+      return;
+    }
+
+    setIsLookingUpMember(true);
+    try {
+      const member = await fetchMemberById(normalizedId);
+      setSelectedMember(member);
+      updateField("folioNumber", String(member.id));
+    } catch (error) {
+      setSelectedMember(null);
+      setMemberLookupError(error.message);
+    } finally {
+      setIsLookingUpMember(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
 
-    if (!form.folioNumber) newErrors.folioNumber = "Folio number is required.";
+    if (!selectedMember) newErrors.folioNumber = "Enter a valid member user ID.";
     if (!form.applicationDate) newErrors.applicationDate = "Date is required.";
     if (!form.numberOfShares || Number(form.numberOfShares) <= 0) newErrors.numberOfShares = "Valid number of shares required.";
     
@@ -49,28 +85,50 @@ export default function SharesApplicationForm() {
     if (form.paymentMode !== "Cash" && !form.referenceNumber) {
       newErrors.referenceNumber = "Transaction ID / Reference number is required for non-cash payments.";
     }
+    if (!form.faceValue || Number(form.faceValue) <= 0) {
+      newErrors.faceValue = "Valid face value is required.";
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    setIsSubmitted(true);
+    setIsSubmitting(true);
+    setSubmissionError("");
+    try {
+      const savedAllocation = await createShareAllocation({
+        memberId: selectedMember.id,
+        applicationDate: form.applicationDate,
+        shareType: form.shareType,
+        numberOfShares: Number(form.numberOfShares),
+        faceValue: Number(form.faceValue),
+        paymentStatus: form.paymentStatus,
+        dueDate: form.dueDate || null,
+        paymentMode: form.paymentMode,
+        referenceNumber: form.referenceNumber,
+      });
+      setAllocationId(savedAllocation.id);
+      setIsSubmitted(true);
+    } catch (error) {
+      setSubmissionError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="max-w-[1400px] mx-auto p-6 lg:p-8 font-sans">
-      <div className="mb-6 pb-4 border-b border-slate-200 flex justify-between items-center">
+      <div className="mb-1 pb-1 border-b border-slate-200 flex justify-between items-center">
         <div>
           <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Financial Workflow</span>
           <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Shares Application Form</h1>
-          <p className="text-slate-500 text-xs mt-1">Allocate new shares, track settlement methods, and record member capital.</p>
         </div>
       </div>
 
       {isSubmitted && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm font-bold flex items-center justify-between">
-          <span>✓ Shares application submitted and recorded successfully!</span>
+          <span>✓ Share allocation #{allocationId} saved successfully.</span>
           <button onClick={() => setIsSubmitted(false)} className="text-xs underline text-emerald-700">Submit Another</button>
         </div>
       )}
@@ -86,13 +144,66 @@ export default function SharesApplicationForm() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <FormField
               id="folio-number"
-              label="Folio / Member ID"
+              label="Member User ID"
+              type="number"
               value={form.folioNumber}
-              onChange={(val) => updateField("folioNumber", val)}
+              onChange={(val) => {
+                updateField("folioNumber", val);
+                setSelectedMember(null);
+                setMemberLookupError("");
+              }}
+              onBlur={lookupMember}
               error={errors.folioNumber}
               required
-              placeholder="e.g. FOLIO-2026-001"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              placeholder="Enter generated user ID"
             />
+
+            <FormField
+              id="member-name"
+              label="Member Name"
+              value={selectedMember?.fullName || ""}
+              readOnly
+              placeholder={isLookingUpMember ? "Loading member..." : "Fetched by user ID"}
+            />
+
+            <FormField
+              id="member-mobile"
+              label="Mobile Number"
+              value={selectedMember?.mobile || ""}
+              readOnly
+              placeholder="Fetched by user ID"
+            />
+
+            <FormField
+              id="member-email"
+              label="Email Address"
+              value={selectedMember?.email || ""}
+              readOnly
+              placeholder="Fetched by user ID"
+            />
+
+            <FormField
+              id="member-type"
+              label="Member Type"
+              value={selectedMember?.memberType || ""}
+              readOnly
+              placeholder="Fetched by user ID"
+            />
+
+            <FormField
+              id="member-year"
+              label="Membership Year"
+              value={selectedMember?.membershipYear || ""}
+              readOnly
+              placeholder="Fetched by user ID"
+            />
+
+            {memberLookupError && (
+              <p className="col-span-full text-red-600 text-xs" role="alert">{memberLookupError}</p>
+            )}
 
             <FormField
               id="application-date"
@@ -110,7 +221,7 @@ export default function SharesApplicationForm() {
               value={form.shareType}
               onChange={(val) => updateField("shareType", val)}
               error={errors.shareType}
-              options={["Ordinary Shares", "Preference Shares", "Founder Shares"]}
+              options={registrationSettings.shareTypes}
               required
             />
 
@@ -220,11 +331,15 @@ export default function SharesApplicationForm() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            {submissionError && (
+              <p className="mr-auto self-center text-red-600 text-xs" role="alert">{submissionError}</p>
+            )}
             <button
               type="submit"
-              className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-6 py-2.5 rounded-lg text-sm shadow-sm transition"
+              disabled={isSubmitting || isLookingUpMember}
+              className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-lg text-sm shadow-sm transition"
             >
-              Submit Shares Application
+              {isSubmitting ? "Saving..." : "Submit Shares Application"}
             </button>
           </div>
         </FormSection>

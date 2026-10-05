@@ -1,4 +1,4 @@
-function FormField({ id, label, value, onChange, error, type = "text", required = false, placeholder, min, step, inputMode, children, className = "" }) {
+function FormField({ id, label, value, onChange, onBlur, readOnly = false, error, type = "text", required = false, placeholder, min, minLength, maxLength, pattern, step, inputMode, children, className = "" }) {
   const errorId = `${id}-error`;
   return (
     <div className={`relative min-w-0 mb-0 flex flex-col pt-1.5 ${className}`}>
@@ -13,11 +13,16 @@ function FormField({ id, label, value, onChange, error, type = "text", required 
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur ? (event) => onBlur(event.target.value) : undefined}
+          readOnly={readOnly}
           required={required}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
           placeholder={placeholder}
           min={min}
+          minLength={minLength}
+          maxLength={maxLength}
+          pattern={pattern}
           step={step}
           inputMode={inputMode}
           className="w-full h-[42px] px-3 py-2 border border-slate-300 rounded-md bg-white text-slate-900 text-[13px] outline-none transition focus:border-teal-600 focus:ring-1 focus:ring-teal-600"

@@ -13,6 +13,7 @@ import List from "./Pages/registration/List";
 import MemberList from "./Components/MemberList";
 import AddMember from "./Components/AddMember";
 import LoanCalculator from "./Pages/loans/LoanCalculator";
+import Settings from "./Pages/Settings";
 
 function App() {
   const [activeView, setActiveView] = useState("dashboard");
@@ -49,13 +50,13 @@ function App() {
               <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button onClick={() => setRegSlide("dashboard")} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "dashboard" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>1. Dashboard</button>
                 <button onClick={() => setRegSlide("form")} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "form" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>2. Registration Form</button>
-                <button onClick={() => setRegSlide("list")} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>3. Registered Members</button>
+                <button onClick={() => setRegSlide("list")} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>3. Members</button>
               </div>
             </div>
             <div className="p-6 max-w-[1400px] mx-auto w-full flex-1">
               {regSlide === "dashboard" && <RegistrationDashboard onStartRegistration={() => setRegSlide("form")} onShowList={() => setRegSlide("list")} />}
               {regSlide === "form" && <RegistrationForm />}
-              {regSlide === "list" && <List />}
+              {regSlide === "list" && <MemberList />}
             </div>
           </div>
         )}
@@ -83,9 +84,9 @@ function App() {
         {activeView === "calculator" && <LoanCalculator />}
 
         {/* Other system routes */}
-        {activeView === "members" && <MemberList />}
         {activeView === "add-member" && <AddMember />}
         {activeView === "list" && <List />}
+        {activeView === "settings" && <Settings />}
 
       </div>
     </div>

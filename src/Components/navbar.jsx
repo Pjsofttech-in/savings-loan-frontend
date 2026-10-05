@@ -8,7 +8,7 @@ function Navbar({ activeView, onNavigate }) {
     { id: "registration", label: "Member registration" },
     { id: "shares", label: "Shares application" },
     { id: "list", label: "Transaction & User List" }, 
-   
+    { id: "settings", label: "Settings" },
   ];
 
   return (

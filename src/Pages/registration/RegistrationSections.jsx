@@ -86,7 +86,7 @@ export function MemberDetails({
     >
       <div className="mb-5 pb-4 border-b border-slate-200">
         <p className="text-slate-500 text-[13px]">
-          Enter the member's personal and identification information.
+         
         </p>
       </div>
 
