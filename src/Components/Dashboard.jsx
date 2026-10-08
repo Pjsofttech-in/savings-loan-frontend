@@ -1,6 +1,7 @@
 // src/Components/Dashboard.jsx
 import { useState, useEffect } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
+import apiClient from "../services/apiClient";
 import DashboardAnalytics from "./DashboardAnalytics";
 
 export default function Dashboard({ onStartRegistration, onShowUserList }) {
@@ -21,14 +22,14 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
   // Fetch live aggregated data from your Spring Boot MySQL backend
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:8080/api/members')
-        .then(res => res.json())
+      apiClient.get('/api/members')
+        .then(res => res.data)
         .catch(() => []),
-      fetch('http://localhost:8080/api/shares')
-        .then(res => res.json())
+      apiClient.get('/api/shares')
+        .then(res => res.data)
         .catch(() => []),
-      fetch('http://localhost:8080/api/transactions')
-        .then(res => res.json())
+      apiClient.get('/api/transactions')
+        .then(res => res.data)
         .catch(() => [])
     ])
     .then(([membersData, sharesData, txData]) => {

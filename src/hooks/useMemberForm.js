@@ -6,6 +6,7 @@ import {
 } from "../constants/formOptions";
 import { getTotalShareValue } from "../utils/formHelpers";
 import { validateMemberForm } from "../utils/validation";
+import apiClient from "../services/apiClient";
 
 function mergeForm(savedForm) {
   if (!savedForm || typeof savedForm !== "object") return null;
@@ -133,25 +134,14 @@ export function useMemberForm() {
       };
 
       // Send it to your Spring Boot API
-      const response = await fetch('http://localhost:8080/api/members', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(databasePayload)
+      await apiClient.post("/api/members", databasePayload);
+      formMethods.reset(initialForm);
+      setErrors({});
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setMessage({
+        type: "success",
+        text: "Registration saved successfully to MySQL database!",
       });
-
-      if (response.ok) {
-        formMethods.reset(initialForm);
-        setErrors({});
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-        setMessage({
-          type: "success",
-          text: "Registration saved successfully to MySQL database!",
-        });
-      } else {
-        throw new Error("Server rejected the save");
-      }
       
     } catch (error) {
       console.error("Database connection error:", error);

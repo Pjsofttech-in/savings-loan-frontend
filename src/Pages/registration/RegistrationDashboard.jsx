@@ -1,5 +1,6 @@
 // src/Pages/registration/RegistrationDashboard.jsx
 import { useState, useEffect } from "react";
+import apiClient from "../../services/apiClient";
 
 export default function RegistrationDashboard({ onStartRegistration, onShowList }) {
   const [stats, setStats] = useState({
@@ -14,11 +15,11 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
   // Fetch real records from your Spring Boot MySQL backend and fallback to system totals
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:8080/api/members')
-        .then(res => res.json())
+      apiClient.get('/api/members')
+        .then(res => res.data)
         .catch(() => []),
-      fetch('http://localhost:8080/api/shares')
-        .then(res => res.json())
+      apiClient.get('/api/shares')
+        .then(res => res.data)
         .catch(() => [])
     ])
     .then(([membersData, sharesData]) => {

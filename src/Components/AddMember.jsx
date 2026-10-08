@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import apiClient from '../services/apiClient';
 
 export default function AddMember() {
   const [formData, setFormData] = useState({
@@ -11,22 +12,12 @@ export default function AddMember() {
     e.preventDefault(); // Prevents the page from refreshing
     
     try {
-      const response = await fetch('http://localhost:8080/api/members', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        alert("Member successfully added to MySQL!");
-        setFormData({ name: '', email: '', phone: '' }); // Clear the form
-      } else {
-        alert("Failed to add member.");
-      }
+      await apiClient.post('/api/members', formData);
+      alert("Member successfully added to MySQL!");
+      setFormData({ name: '', email: '', phone: '' }); // Clear the form
     } catch (error) {
       console.error("API Integration Error:", error);
+      alert(error.response?.data?.message || "Failed to add member.");
     }
   };
 
