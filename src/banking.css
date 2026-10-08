@@ -1183,3 +1183,44 @@ body {
     width: 100%;
   }
 }
+
+.app-content table {
+  width: 100%;
+  min-width: max-content;
+  color: #172b43;
+  font-size: 14px;
+}
+
+.app-content table thead th {
+  padding: 14px;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.28);
+  border-bottom: 1px solid #5684d6;
+  background: #6495ed !important;
+  color: #ffffff !important;
+  font-family: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-content table thead th:last-child {
+  border-right: 0;
+}
+
+.app-content table tbody tr {
+  background: #3782ce !important;
+  border-bottom: 1px solid #c9dcf0;
+  transition: background-color 150ms ease;
+}
+
+.app-content table tbody tr:hover {
+  background: #3179c2 !important;
+}
+
+.app-content table tbody td {
+  padding: 14px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  border-bottom: 1px solid #c9dcf0;
+}
