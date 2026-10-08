@@ -2,9 +2,14 @@
 import { useEffect, useState } from "react";
 import NotificationModal from "../../Components/NotificationModel";
 import { fetchMembers } from "../../services/memberService";
+import { fetchShareAllocations } from "../../services/shareService";
+import { formatIndianCurrency } from "../../utils/formHelpers";
 
 export default function List() {
   const [members, setMembers] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [loadingRecords, setLoadingRecords] = useState(true);
+  const [recordsError, setRecordsError] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
 
@@ -17,77 +22,40 @@ export default function List() {
   const [filterMessageType, setFilterMessageType] = useState("All");
 
   useEffect(() => {
-    fetchMembers().then(setMembers).catch((error) => console.error("Could not load member IDs:", error));
+    Promise.all([fetchMembers(), fetchShareAllocations()])
+      .then(([memberRecords, shareRecords]) => {
+        setMembers(memberRecords);
+        const membersById = new Map(memberRecords.map((member) => [member.id, member]));
+        setRecords(shareRecords.map((share) => {
+          const member = membersById.get(share.memberId);
+          const amount = Number(share.paymentAmount) || 0;
+          const paid = share.paymentStatus === "Complete" ? amount : 0;
+          const pending = share.paymentStatus === "Pending" ? amount : 0;
+          return {
+            id: share.id,
+            user: share.memberName || member?.fullName || "Member",
+            type: "Income",
+            category: "Share Capital",
+            date: share.applicationDate || "-",
+            dueDate: share.dueDate || "-",
+            paymentMethod: share.paymentMethod || "Cash",
+            transactionId: share.referenceNumber || "",
+            paymentStatus: share.paymentStatus || "Pending",
+            totalLoanAmount: formatIndianCurrency(amount),
+            amountPaid: formatIndianCurrency(paid),
+            pendingAmount: formatIndianCurrency(pending),
+            amount: formatIndianCurrency(amount),
+          };
+        }));
+      })
+      .catch((error) => setRecordsError(error.message))
+      .finally(() => setLoadingRecords(false));
   }, []);
 
   const memberIdsByName = new Map(
     members.map((member) => [member.fullName?.trim().toLocaleLowerCase(), member.id]),
   );
   const getMemberId = (name) => memberIdsByName.get(name.trim().toLocaleLowerCase()) || "-";
-
-  // Sample transaction/member records
-  const [records] = useState([
-    {
-      id: 1,
-      user: "Vivek Arun Deore",
-      type: "Income",
-      category: "Share Capital & Loan",
-      date: "2026-09-24",
-      dueDate: "2026-10-15",
-      paymentMethod: "UPI",
-      transactionId: "UPI/2026/839201",
-      paymentStatus: "Pending",
-      totalLoanAmount: "₹50,000",
-      amountPaid: "₹35,000",
-      pendingAmount: "₹15,000",
-      amount: "₹10,000",
-    },
-    {
-      id: 2,
-      user: "Aarav Sharma",
-      type: "Income",
-      category: "Monthly Saving",
-      date: "2026-09-20",
-      dueDate: "-",
-      paymentMethod: "Bank Transfer",
-      transactionId: "TXN9382019283",
-      paymentStatus: "Complete",
-      totalLoanAmount: "₹20,000",
-      amountPaid: "₹20,000",
-      pendingAmount: "₹0",
-      amount: "₹1,000",
-    },
-    {
-      id: 3,
-      user: "Priya Patil",
-      type: "Expense",
-      category: "Loan Disbursement",
-      date: "2026-09-15",
-      dueDate: "2026-11-01",
-      paymentMethod: "Cash",
-      transactionId: "",
-      paymentStatus: "Pending",
-      totalLoanAmount: "₹1,00,000",
-      amountPaid: "₹40,000",
-      pendingAmount: "₹60,000",
-      amount: "₹5,000",
-    },
-    {
-      id: 4,
-      user: "Rohan Deshmukh",
-      type: "Income",
-      category: "Registration Fee",
-      date: "2026-09-10",
-      dueDate: "2026-09-25",
-      paymentMethod: "Cheque",
-      transactionId: "CHQ-004829",
-      paymentStatus: "Refunded",
-      totalLoanAmount: "₹10,000",
-      amountPaid: "₹10,000",
-      pendingAmount: "₹0",
-      amount: "₹500",
-    },
-  ]);
 
   // Filter logic
   const filteredRecords = records.filter((item) => {
@@ -97,12 +65,21 @@ export default function List() {
     if (filterUser !== "All" && !item.user.toLowerCase().includes(filterUser.toLowerCase())) return false;
     return true;
   });
+  const totalPaid = records
+    .filter((record) => record.paymentStatus === "Complete")
+    .reduce((total, record) => total + (Number(record.amount.replace(/[₹,]/g, "")) || 0), 0);
+  const totalPending = records
+    .filter((record) => record.paymentStatus === "Pending")
+    .reduce((total, record) => total + (Number(record.amount.replace(/[₹,]/g, "")) || 0), 0);
+  const totalRefunded = records
+    .filter((record) => record.paymentStatus === "Refunded")
+    .reduce((total, record) => total + (Number(record.amount.replace(/[₹,]/g, "")) || 0), 0);
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans">
       <div className="mb-6 pb-4 border-b border-slate-200">
         <h2 className="text-[#102a43] text-xl font-bold m-0">Transaction &amp; Member List</h2>
-        <p className="text-slate-500 text-xs mt-1">Manage payments, tracking status, due dates, and click any row to inspect member financial ledgers.</p>
+        <p className="text-slate-500 text-xs mt-1">Review member share transactions, payment status, and due dates. Click a row to see its details.</p>
       </div>
 
       {/* Filter Control Grid */}
@@ -178,27 +155,27 @@ export default function List() {
       <div className="flex flex-wrap items-center gap-3 mb-6 overflow-x-auto pb-2">
         <div className="bg-[#0284c7] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-sm flex items-center gap-2 whitespace-nowrap">
           <span>Total GST:</span>
-          <span>₹1,350</span>
+          <span>{formatIndianCurrency(0)}</span>
         </div>
         <div className="bg-[#9333ea] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-sm flex items-center gap-2 whitespace-nowrap">
           <span>Total TDS:</span>
-          <span>₹0</span>
+          <span>{formatIndianCurrency(0)}</span>
         </div>
         <div className="bg-[#22c55e] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-sm flex items-center gap-2 whitespace-nowrap">
           <span>Paid:</span>
-          <span>₹76,001</span>
+          <span>{formatIndianCurrency(totalPaid)}</span>
         </div>
         <div className="bg-[#f97316] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-sm flex items-center gap-2 whitespace-nowrap">
           <span>Pending:</span>
-          <span>₹75,000</span>
+          <span>{formatIndianCurrency(totalPending)}</span>
         </div>
         <div className="bg-[#16a34a] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-sm flex items-center gap-2 whitespace-nowrap">
           <span>Expense Refund:</span>
-          <span>₹0</span>
+          <span>{formatIndianCurrency(totalRefunded)}</span>
         </div>
         <div className="bg-[#22c55e] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-sm flex items-center gap-2 whitespace-nowrap">
           <span>Total Income:</span>
-          <span>₹76,001</span>
+          <span>{formatIndianCurrency(totalPaid)}</span>
         </div>
       </div>
 
@@ -264,7 +241,7 @@ export default function List() {
             ) : (
               <tr>
                 <td colSpan="8" className="p-6 text-center text-slate-400">
-                  No matching records found.
+                  {loadingRecords ? "Loading transactions..." : recordsError || "No share transactions found for the current filters."}
                 </td>
               </tr>
             )}
@@ -293,7 +270,7 @@ export default function List() {
             {/* Financial Summary Cards inside Modal */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                <span className="text-slate-500 text-[11px] block font-semibold uppercase">Total Sanctioned</span>
+                <span className="text-slate-500 text-[11px] block font-semibold uppercase">Total Transaction</span>
                 <strong className="text-slate-900 text-base font-extrabold mt-1 block">{selectedMember.totalLoanAmount}</strong>
               </div>
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
@@ -301,7 +278,7 @@ export default function List() {
                 <strong className="text-emerald-700 text-base font-extrabold mt-1 block">{selectedMember.amountPaid}</strong>
               </div>
               <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-center">
-                <span className="text-rose-800 text-[11px] block font-semibold uppercase">Pending Due</span>
+                <span className="text-rose-800 text-[11px] block font-semibold uppercase">Pending Amount</span>
                 <strong className="text-rose-600 text-base font-extrabold mt-1 block">{selectedMember.pendingAmount}</strong>
               </div>
             </div>

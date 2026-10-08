@@ -6,15 +6,16 @@ import {
 import { fetchMembers } from "../services/memberService";
 
 const catalogs = [
-  { key: "memberTypes", title: "Member Types", singular: "Member Type" },
-  { key: "years", title: "Membership Years", singular: "Membership Year" },
-  { key: "shareTypes", title: "Share Types", singular: "Share Type" },
-  { key: "members", title: "Members", singular: "Member" },
+  { key: "memberTypes", title: "Member Types", singular: "Member Type", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0M19 8v6m3-3h-6" },
+  { key: "years", title: "Membership Years", singular: "Membership Year", icon: "M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" },
+  { key: "shareTypes", title: "Share Types", singular: "Share Type", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 5 9 5 9-5" },
+  { key: "members", title: "Members", singular: "Member", icon: "M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3a4 4 0 0 1 0 7m2 2a4 4 0 0 1 2 4" },
 ];
 
 export default function Settings() {
   const [settings, setSettings] = useState(getRegistrationSettings);
   const [activeKey, setActiveKey] = useState(catalogs[0].key);
+  const [menuExpanded, setMenuExpanded] = useState(false);
   const [search, setSearch] = useState("");
   const [newOption, setNewOption] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -77,31 +78,44 @@ export default function Settings() {
         <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Settings</h1>
       </header>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
-        <div className="flex flex-wrap gap-2 mb-5" role="tablist" aria-label="Settings categories">
-          {catalogs.map(({ key, title }) => (
+      <div className={`settings-workspace ${menuExpanded ? "settings-menu-expanded" : ""}`}>
+        <aside className="settings-category-menu" aria-label="Settings categories">
+          <button
+            type="button"
+            className="settings-category-toggle"
+            aria-label={menuExpanded ? "Collapse settings menu" : "Expand settings menu"}
+            aria-expanded={menuExpanded}
+            onClick={() => setMenuExpanded((expanded) => !expanded)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span className="settings-category-label">Settings menu</span>
+          </button>
+          {catalogs.map(({ key, title, icon }) => (
             <button
               key={key}
               type="button"
-              role="tab"
-              aria-selected={activeKey === key}
+              className={`settings-category-button ${activeKey === key ? "active" : ""}`}
+              aria-current={activeKey === key ? "page" : undefined}
+              aria-label={title}
+              title={!menuExpanded ? title : undefined}
               onClick={() => {
                 setActiveKey(key);
                 setSearch("");
                 setMessage("");
                 setIsAdding(false);
               }}
-              className={`px-4 py-2 rounded-md border text-sm font-semibold transition ${
-                activeKey === key
-                  ? "border-[#1677d2] bg-[#1677d2] text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
             >
-              {title}
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d={icon} />
+              </svg>
+              <span className="settings-category-label">{title}</span>
             </button>
           ))}
-        </div>
+        </aside>
 
+        <section key={activeKey} className="settings-category-content rounded-lg border border-slate-200 bg-white p-4 sm:p-5" aria-label={activeCatalog.title}>
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <input
             aria-label={`Search ${activeCatalog.title}`}
@@ -197,6 +211,7 @@ export default function Settings() {
           </div>
         </div>
       </section>
+      </div>
     </main>
   );
 }

@@ -63,7 +63,9 @@ export default function RegistrationForm() {
     getPaymentConfiguration()
       .then((configuration) => {
         setPaymentConfig(configuration);
-        if (!configuration.ready) {
+        if (!configuration.feeConfigured) {
+          setPaymentError("The administrator has not configured the registration fee yet.");
+        } else if (!configuration.ready) {
           setPaymentError("Razorpay credentials are not configured on the backend yet.");
         }
       })
@@ -122,7 +124,9 @@ export default function RegistrationForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!paymentConfig?.ready) {
-      setPaymentError("Razorpay is not configured on the backend yet.");
+      setPaymentError(!paymentConfig?.feeConfigured
+        ? "The administrator has not configured the registration fee yet."
+        : "Razorpay is not configured on the backend yet.");
       return;
     }
 
@@ -229,12 +233,7 @@ export default function RegistrationForm() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto font-sans">
-      <div className="mb-6 pb-4 border-b border-slate-200">
-        <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Member Onboarding</span>
-        <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Member Registration Form</h1>
-      </div>
-
+    <div className="registration-form-content max-w-[1400px] mx-auto font-sans">
       {isSubmitted && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm font-bold flex items-center justify-between">
           <span>✓ Member registration and payment completed successfully. Payment ID: {paymentId}</span>
@@ -242,7 +241,7 @@ export default function RegistrationForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         
         {/* Section 1: Personal Details */}
         <FormSection id="personal-details" number="1" title="Member Personal Details" active={true}>
@@ -452,7 +451,11 @@ export default function RegistrationForm() {
               <div>
                 <span className="text-slate-500 text-xs block">Registration Fee</span>
                 <strong className="text-teal-900 text-base font-bold">
-                  {loadingPaymentConfig ? "Loading fee..." : paymentConfig ? `₹${Number(paymentConfig.amount).toLocaleString("en-IN")}` : "Unavailable"}
+                  {loadingPaymentConfig
+                    ? "Loading fee..."
+                    : paymentConfig?.feeConfigured
+                      ? `₹${Number(paymentConfig.amount).toLocaleString("en-IN")}`
+                      : "Unavailable"}
                 </strong>
               </div>
               <span className="text-slate-600 text-xs">Secure payment via Razorpay</span>

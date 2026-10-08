@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
 import { fetchMemberById, fetchMembers } from "../services/memberService";
 import { fetchShareAllocations } from "../services/shareService";
+import MemberAvatar from "./MemberAvatar";
 
 const initialFilters = { memberType: "All", year: "All", city: "All", status: "All" };
 
@@ -16,6 +17,229 @@ function DetailItem({ label, value }) {
     <div className="min-w-0 border-b border-slate-100 pb-3">
       <dt className="text-xs text-slate-500">{label}</dt>
       <dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value || "Not provided"}</dd>
+    </div>
+  );
+}
+
+function MemberDetailsModal({ member, allocations, shareLoadError, loading, error, onClose }) {
+  const [activeSection, setActiveSection] = useState("personal");
+
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const memberShares = allocations
+    .filter((allocation) => String(allocation.memberId) === String(member?.id))
+    .sort((left, right) => String(right.applicationDate || "").localeCompare(String(left.applicationDate || "")));
+  const totalShares = memberShares.reduce((total, allocation) => total + (Number(allocation.numberOfShares) || 0), 0);
+  const totalShareValue = memberShares.reduce((total, allocation) => total + (Number(allocation.paymentAmount) || 0), 0);
+  const status = member?.status || "Unknown";
+  const normalizedStatus = status.toLocaleLowerCase();
+  const statusClass = normalizedStatus === "active"
+    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+    : ["suspended", "terminated", "inactive", "disactive"].includes(normalizedStatus)
+      ? "bg-red-50 text-red-800 border-red-200"
+      : "bg-amber-50 text-amber-800 border-amber-200";
+  const profileSections = [
+    { id: "personal", label: "Personal information" },
+    { id: "address", label: "Address information" },
+    { id: "nominee", label: "Nominee details" },
+    { id: "membership", label: "Membership" },
+    { id: "documents", label: "Documents" },
+    { id: "shares", label: "Share history" },
+    { id: "loans", label: "Loan records" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="member-profile-title"
+        className="member-profile-modal flex max-h-[94vh] w-full max-w-7xl overflow-hidden rounded-xl bg-white shadow-2xl"
+      >
+        <aside className="member-profile-sidebar flex shrink-0 flex-col text-white">
+          <div className="member-profile-identity">
+            <button
+              type="button"
+              onClick={onClose}
+              className="mb-6 flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white"
+            >
+              <span aria-hidden="true">←</span> Back
+            </button>
+            <MemberAvatar
+              name={member?.fullName}
+              className="member-profile-avatar overflow-hidden"
+            />
+            <h2 id="member-profile-title" className="mt-3 break-words text-center text-lg font-bold">
+              {member?.fullName || "Member details"}
+            </h2>
+            <p className="mt-1 break-all text-center text-sm text-white/85">{member?.email || "Email not provided"}</p>
+            <p className="mt-2 text-center font-mono text-xs text-white/75">Member ID: {member?.id || "—"}</p>
+            <span className={`mx-auto mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-bold ${statusClass}`}>
+              {status}
+            </span>
+          </div>
+
+          <nav className="member-profile-nav" aria-label="Member profile sections">
+            {profileSections.map((section, index) => (
+              <button
+                key={section.id}
+                type="button"
+                aria-current={activeSection === section.id ? "page" : undefined}
+                onClick={() => setActiveSection(section.id)}
+                className={`member-profile-nav-item ${activeSection === section.id ? "active" : ""}`}
+              >
+                <span className="member-profile-nav-number">{index + 1}</span>
+                <span>{section.label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="member-profile-main min-w-0 flex-1 overflow-y-auto">
+          <header className="member-profile-topbar flex items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-blue-700">Member profile</span>
+              <p className="mt-1 text-sm text-slate-600">{member?.memberType || "Member"} · {member?.membershipYear || "Membership year not provided"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close member details"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            >
+              ×
+            </button>
+          </header>
+
+          <div className="member-profile-content">
+            {loading && <p className="py-12 text-center text-sm text-slate-500">Loading member details...</p>}
+            {error && <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+            {member && (
+              <>
+                {activeSection === "personal" && (
+                  <section>
+                    <h3 className="member-profile-section-title">Personal information</h3>
+                    <dl className="member-profile-fields">
+                      <DetailItem label="Full name" value={member.fullName} />
+                      <DetailItem label="Father / spouse name" value={member.fatherName} />
+                      <DetailItem label="Date of birth" value={formatDate(member.birthDate)} />
+                      <DetailItem label="Gender" value={member.gender} />
+                      <DetailItem label="Occupation" value={member.occupation} />
+                      <DetailItem label="Mobile" value={member.mobile} />
+                      <DetailItem label="Email" value={member.email} />
+                    </dl>
+                  </section>
+                )}
+
+                {activeSection === "address" && (
+                  <section>
+                    <h3 className="member-profile-section-title">Address information</h3>
+                    <dl className="member-profile-fields">
+                      <DetailItem label="Address" value={member.address} />
+                      <DetailItem label="City" value={member.city} />
+                    </dl>
+                  </section>
+                )}
+
+                {activeSection === "nominee" && (
+                  <section>
+                    <h3 className="member-profile-section-title">Nominee details</h3>
+                    <dl className="member-profile-fields">
+                      <DetailItem label="Nominee" value={member.nomineeName} />
+                      <DetailItem label="Relationship" value={member.nomineeRelationship} />
+                      <DetailItem label="Nominee mobile" value={member.nomineeMobile} />
+                    </dl>
+                  </section>
+                )}
+
+                {activeSection === "membership" && (
+                  <section>
+                    <h3 className="member-profile-section-title">Membership</h3>
+                    <dl className="member-profile-fields">
+                      <DetailItem label="Member type" value={member.memberType} />
+                      <DetailItem label="Membership year" value={member.membershipYear} />
+                      <DetailItem label="Joined" value={formatDate(member.joiningDate)} />
+                      <DetailItem label="Account status" value={status} />
+                      <DetailItem label="Registration payment reference" value={member.paymentId} />
+                    </dl>
+                  </section>
+                )}
+
+                {activeSection === "documents" && (
+                  <section>
+                    <h3 className="member-profile-section-title">Submitted document</h3>
+                    <dl className="member-profile-fields">
+                      <DetailItem label="ID proof type" value={member.documentType} />
+                    </dl>
+                    <p className="member-document-note">
+                      The registration record stores the document type. The uploaded file is not available to view in this profile.
+                    </p>
+                  </section>
+                )}
+
+                {activeSection === "shares" && (
+                  <section>
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="member-profile-section-title !mb-0">Share history</h3>
+                      <span className="text-sm font-semibold text-slate-600">
+                        {totalShares} shares · {formatIndianCurrency(totalShareValue)}
+                      </span>
+                    </div>
+                    {shareLoadError ? (
+                      <p role="status" className="text-sm text-amber-800">Share history unavailable: {shareLoadError}</p>
+                    ) : memberShares.length ? (
+                      <div className="overflow-x-auto rounded-lg border border-slate-200">
+                        <table className="min-w-[620px] w-full text-left text-sm">
+                          <thead>
+                            <tr>
+                              <th>Applied</th>
+                              <th>Share type</th>
+                              <th>Units</th>
+                              <th>Payment</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {memberShares.map((allocation) => (
+                              <tr key={allocation.id}>
+                                <td>{formatDate(allocation.applicationDate)}</td>
+                                <td>{allocation.shareType || "-"}</td>
+                                <td>{allocation.numberOfShares}</td>
+                                <td>{formatIndianCurrency(allocation.paymentAmount)}</td>
+                                <td>{allocation.paymentStatus || "Unknown"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No share allocations are recorded for this member.</p>
+                    )}
+                  </section>
+                )}
+
+                {activeSection === "loans" && (
+                  <section>
+                    <h3 className="member-profile-section-title">Loan records</h3>
+                    <p className="text-sm text-slate-600">Loan account history is not stored in the current member records.</p>
+                  </section>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -90,147 +314,9 @@ export default function MemberList() {
     }
   };
 
-  if (selectedMemberId !== null) {
-    const memberShares = allocations
-      .filter((allocation) => String(allocation.memberId) === String(selectedMemberId))
-      .sort((left, right) => String(right.applicationDate || "").localeCompare(String(left.applicationDate || "")));
-    const totalShares = memberShares.reduce((total, allocation) => total + (Number(allocation.numberOfShares) || 0), 0);
-    const totalShareValue = memberShares.reduce((total, allocation) => total + (Number(allocation.paymentAmount) || 0), 0);
-    const status = selectedMember?.status || "Unknown";
-    const normalizedStatus = status.toLocaleLowerCase();
-    const statusClass = normalizedStatus === "active"
-      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-      : ["suspended", "terminated", "inactive", "disactive"].includes(normalizedStatus)
-        ? "bg-red-50 text-red-800 border-red-200"
-        : "bg-amber-50 text-amber-800 border-amber-200";
-
-    return (
-      <main className="max-w-[1400px] mx-auto p-6 lg:p-8 font-sans">
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedMemberId(null);
-            setSelectedMember(null);
-            setDetailError("");
-          }}
-          className="mb-5 text-sm font-semibold text-teal-800 hover:text-teal-950"
-        >
-          ← Back to members
-        </button>
-        {loadingDetails && <p className="py-12 text-center text-sm text-slate-500">Loading member details...</p>}
-        {detailError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{detailError}</p>}
-        {selectedMember && (
-          <>
-            <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Member Profile</span>
-                <h1 className="mt-1 text-2xl font-extrabold text-[#102a43]">{selectedMember.fullName || "Member"}</h1>
-                <p className="mt-1 font-mono text-sm text-slate-500">Member ID: {selectedMember.id}</p>
-              </div>
-              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-bold ${statusClass}`}>
-                {status}
-              </span>
-            </header>
-
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-              <div className="space-y-5 xl:col-span-2">
-                <section className="rounded-lg border border-slate-200 bg-white p-5">
-                  <h2 className="mb-5 text-base font-bold text-slate-900">Personal background</h2>
-                  <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <DetailItem label="Father / spouse name" value={selectedMember.fatherName} />
-                    <DetailItem label="Date of birth" value={formatDate(selectedMember.birthDate)} />
-                    <DetailItem label="Gender" value={selectedMember.gender} />
-                    <DetailItem label="Occupation" value={selectedMember.occupation} />
-                    <DetailItem label="Mobile" value={selectedMember.mobile} />
-                    <DetailItem label="Email" value={selectedMember.email} />
-                    <DetailItem label="Address" value={selectedMember.address} />
-                    <DetailItem label="City" value={selectedMember.city} />
-                  </dl>
-                </section>
-
-                <section className="rounded-lg border border-slate-200 bg-white p-5">
-                  <h2 className="mb-5 text-base font-bold text-slate-900">Nominee relationship</h2>
-                  <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
-                    <DetailItem label="Nominee" value={selectedMember.nomineeName} />
-                    <DetailItem label="Relationship" value={selectedMember.nomineeRelationship} />
-                    <DetailItem label="Nominee mobile" value={selectedMember.nomineeMobile} />
-                  </dl>
-                </section>
-
-                <section className="rounded-lg border border-slate-200 bg-white p-5">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-base font-bold text-slate-900">Share relationship</h2>
-                    <span className="text-xs text-slate-500">{totalShares} shares · {formatIndianCurrency(totalShareValue)}</span>
-                  </div>
-                  {shareLoadError ? (
-                    <p role="status" className="text-sm text-amber-800">Share history unavailable: {shareLoadError}</p>
-                  ) : memberShares.length ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-[620px] w-full text-left text-sm">
-                        <thead className="border-b border-slate-200 text-xs text-slate-500">
-                          <tr>
-                            <th className="py-2 pr-4">Applied</th>
-                            <th className="py-2 pr-4">Share type</th>
-                            <th className="py-2 pr-4">Units</th>
-                            <th className="py-2 pr-4">Payment</th>
-                            <th className="py-2">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {memberShares.map((allocation) => (
-                            <tr key={allocation.id}>
-                              <td className="py-3 pr-4">{formatDate(allocation.applicationDate)}</td>
-                              <td className="py-3 pr-4">{allocation.shareType || "-"}</td>
-                              <td className="py-3 pr-4">{allocation.numberOfShares}</td>
-                              <td className="py-3 pr-4">{formatIndianCurrency(allocation.paymentAmount)}</td>
-                              <td className="py-3">{allocation.paymentStatus || "Unknown"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-500">No share allocations are recorded for this member.</p>
-                  )}
-                </section>
-              </div>
-
-              <aside className="space-y-5">
-                <section className="rounded-lg border border-slate-200 bg-white p-5">
-                  <h2 className="mb-5 text-base font-bold text-slate-900">Membership with the group</h2>
-                  <dl className="space-y-4">
-                    <DetailItem label="Member type" value={selectedMember.memberType} />
-                    <DetailItem label="Membership year" value={selectedMember.membershipYear} />
-                    <DetailItem label="Joined" value={formatDate(selectedMember.joiningDate)} />
-                    <DetailItem label="Account status" value={status} />
-                    <DetailItem label="Registration payment reference" value={selectedMember.paymentId} />
-                    <DetailItem label="ID proof type" value={selectedMember.documentType} />
-                  </dl>
-                </section>
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-                  <h2 className="text-sm font-bold text-slate-900">Loan records</h2>
-                  <p className="mt-2 text-sm text-slate-600">Loan account history is not stored in the current member records.</p>
-                </section>
-              </aside>
-            </div>
-          </>
-        )}
-      </main>
-    );
-  }
-
   return (
-    <main className="max-w-[1400px] mx-auto p-6 lg:p-8 font-sans">
-      <header className="mb-5 pb-4 border-b border-slate-200 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Member Directory</span>
-          <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Members</h1>
-        </div>
-        <span className="h-10 px-4 inline-flex items-center rounded-full border border-teal-700 text-teal-800 text-sm font-semibold">
-          Total: {filteredMembers.length}
-        </span>
-      </header>
-
+    <>
+    <main className="max-w-[1400px] mx-auto px-6 pb-6 pt-0 lg:px-8 lg:pb-8 lg:pt-0 font-sans">
       <section className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 sm:p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 mb-5">
           <input
@@ -278,6 +364,7 @@ export default function MemberList() {
             <thead>
               <tr className="bg-[#6495ed] text-white font-bold">
                 <th className="px-4 py-3">Member ID</th>
+                <th className="px-4 py-3">Photo</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Mobile No.</th>
                 <th className="px-4 py-3">Email</th>
@@ -294,6 +381,12 @@ export default function MemberList() {
                     <button type="button" onClick={() => openMemberDetails(member.id)} className="text-left text-teal-800 hover:underline">
                       {member.id}
                     </button>
+                  </td>
+                  <td className="px-4 py-2">
+                    <MemberAvatar
+                      name={member.fullName}
+                      className="h-10 w-10 rounded-full"
+                    />
                   </td>
                   <td className="px-4 py-3 font-semibold text-slate-900">
                     <button type="button" onClick={() => openMemberDetails(member.id)} className="text-left hover:text-teal-800 hover:underline">
@@ -312,7 +405,7 @@ export default function MemberList() {
               ))}
               {!filteredMembers.length && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">
                     {loading ? "Loading members..." : loadError ? "Members could not be loaded." : "No members match these filters."}
                   </td>
                 </tr>
@@ -322,5 +415,20 @@ export default function MemberList() {
         </div>
       </section>
     </main>
+    {selectedMemberId !== null && (
+      <MemberDetailsModal
+        member={selectedMember}
+        allocations={allocations}
+        shareLoadError={shareLoadError}
+        loading={loadingDetails}
+        error={detailError}
+        onClose={() => {
+          setSelectedMemberId(null);
+          setSelectedMember(null);
+          setDetailError("");
+        }}
+      />
+    )}
+    </>
   );
 }
