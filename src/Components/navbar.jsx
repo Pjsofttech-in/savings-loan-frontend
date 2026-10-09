@@ -1,3 +1,4 @@
+// src/components/Navbar.jsx
 import { useEffect, useRef, useState } from "react";
 import logo from "../assets/Pj Soft.png";
 
@@ -6,7 +7,7 @@ function Navbar({ activeView, onNavigate }) {
     { id: "dashboard", label: "Dashboard" },
     { id: "registration", label: "Member registration" },
     { id: "shares", label: "Shares application" },
-    { id: "list", label: "Transaction & User List" },
+    { id: "savings", label: "Monthly Savings" },
     { id: "settings", label: "Settings" },
   ];
   const profileRef = useRef(null);
