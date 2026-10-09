@@ -1,109 +1,267 @@
-// src/Pages/shares/SharesList.jsx
-import { useState, useEffect } from "react";
-import { formatIndianCurrency } from "../../utils/formHelpers";
-import { fetchShareAllocations } from "../../services/shareService";
+// src/Pages/registration/SharesList.jsx
+import { useState, useEffect, useMemo } from "react";
+import apiClient from "../../services/apiClient";
 
-export default function SharesList() {
+export default function SharesList({ onStartShares }) {
+  const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [sharesRecords, setSharesRecords] = useState([]);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [yearFilter, setYearFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [modeFilter, setModeFilter] = useState("All");
+  const [dueDateFilter, setDueDateFilter] = useState("");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(5);
+
+  // Fetch dynamic shares and member data from Spring Boot backend
   useEffect(() => {
-    let isMounted = true;
-    fetchShareAllocations()
-      .then((records) => {
-        if (isMounted) setSharesRecords(records);
-      })
-      .catch((error) => {
-        if (isMounted) setLoadError(error.message);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+    const params = new URLSearchParams();
+    if (yearFilter !== "All") params.append("year", yearFilter);
+    if (statusFilter !== "All") params.append("status", statusFilter);
+    if (modeFilter !== "All") params.append("mode", modeFilter);
+    if (dueDateFilter) params.append("dueDate", dueDateFilter);
 
-    return () => { isMounted = false; };
-  }, []);
-  const totalSharesCount = sharesRecords.reduce((sum, s) => sum + (Number(s.numberOfShares) || 0), 0);
-  const totalCapitalPool = sharesRecords.reduce((sum, s) => sum + (Number(s.paymentAmount) || 0), 0);
+    Promise.all([
+      apiClient.get(`/api/shares?${params.toString()}`).catch(() => ({ data: [] })),
+      apiClient.get('/api/members').catch(() => ({ data: [] }))
+    ])
+      .then(([sharesRes, membersRes]) => {
+        const rawShares = Array.isArray(sharesRes.data) ? sharesRes.data : [];
+        const membersList = Array.isArray(membersRes.data) ? membersRes.data : [];
+
+        // Map member names dynamically to respective share records
+        const dynamicShares = rawShares.map(share => {
+          const matchedMember = membersList.find(m => m.id === share.memberId || m.id === share.member_id);
+          return {
+            ...share,
+            memberName: matchedMember ? (matchedMember.fullName || matchedMember.name) : (share.memberName || share.memberId || "Registered Member")
+          };
+        });
+
+        setShares(dynamicShares);
+      })
+      .finally(() => setLoading(false));
+  }, [yearFilter, statusFilter, modeFilter, dueDateFilter]);
+
+  // Client-side search filtering
+  const filteredShares = useMemo(() => {
+    return shares.filter((item) => {
+      const name = item.memberName || item.memberId || "";
+      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    });
+  }, [shares, searchQuery]);
+
+  // Vertical Summary Calculations
+  const totalAmount = filteredShares.reduce((acc, curr) => acc + (Number(curr.totalAmount || curr.quantity * 1000) || 0), 0);
+  const paidAmount = filteredShares.filter(i => i.status === "Paid" || i.status === "Installment").reduce((acc, curr) => acc + (Number(curr.totalAmount || curr.quantity * 1000) || 0), 0);
+  const pendingAmount = filteredShares.filter(i => i.status === "Pending").reduce((acc, curr) => acc + (Number(curr.totalAmount || curr.quantity * 1000) || 0), 0);
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredShares.length / entriesPerPage) || 1;
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * entriesPerPage;
+    return filteredShares.slice(start, start + entriesPerPage);
+  }, [filteredShares, currentPage, entriesPerPage]);
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans">
+    <div className="max-w-[1400px] mx-auto font-sans space-y-6">
       
-      {/* Header */}
-      <div className="mb-6 pb-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Shares Capital Registry</span>
-          <h2 className="text-[#102a43] text-xl font-bold m-0 font-serif">Allotted Shares Records</h2>
-          <p className="text-slate-500 text-xs mt-1">Review all member share allocations, capital contributions, and payment verification IDs.</p>
+      {/* Filters & Vertical Summary Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        {/* Filters Panel */}
+        <div className="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters</h3>
+            {onStartShares && (
+              <button
+                onClick={onStartShares}
+                className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm cursor-pointer"
+              >
+                + Allocate New Shares
+              </button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <input
+              type="text"
+              placeholder="Search Folio ID or Member Name..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs w-full focus:outline-none focus:border-teal-700 bg-white text-slate-800"
+            />
+            
+            <select
+              value={yearFilter}
+              onChange={(e) => { setYearFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
+            >
+              <option value="All">All Years</option>
+              <option value="2026">2026</option>
+              <option value="2025">2025</option>
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
+            >
+              <option value="All">All Payment Statuses</option>
+              <option value="Paid">Paid</option>
+              <option value="Installment">Installment</option>
+              <option value="Refund">Refund</option>
+              <option value="Pending">Pending</option>
+            </select>
+
+            <select
+              value={modeFilter}
+              onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
+            >
+              <option value="All">All Payment Modes</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+
+            <input
+              type="date"
+              value={dueDateFilter}
+              onChange={(e) => { setDueDateFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700"
+            />
+
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setYearFilter("All");
+                setStatusFilter("All");
+                setModeFilter("All");
+                setDueDateFilter("");
+                setCurrentPage(1);
+              }}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition"
+            >
+              Reset Filters
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <span className="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold">
-            Total Allotted: {totalSharesCount} Shares
-          </span>
-          <span className="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold">
-            Capital Pool: {formatIndianCurrency(totalCapitalPool)}
-          </span>
+
+        {/* Vertical Financial Summary Cards */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between space-y-3">
+          <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider mb-1">Financial Summary</h3>
+          
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+            <span className="text-xs font-bold text-slate-600">Total Amount</span>
+            <span className="text-xs font-black text-teal-700">₹{totalAmount.toLocaleString("en-IN")}</span>
+          </div>
+
+          <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex justify-between items-center">
+            <span className="text-xs font-bold text-emerald-800">Paid</span>
+            <span className="text-xs font-black text-emerald-700">₹{paidAmount.toLocaleString("en-IN")}</span>
+          </div>
+
+          <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 flex justify-between items-center">
+            <span className="text-xs font-bold text-amber-800">Pending</span>
+            <span className="text-xs font-black text-amber-700">₹{pendingAmount.toLocaleString("en-IN")}</span>
+          </div>
         </div>
+
       </div>
 
       {/* Data Table */}
-      <div className="overflow-x-auto border border-slate-200 rounded-lg">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 font-serif">
-              <th className="p-3">Folio ID</th>
-              <th className="p-3">Member Name</th>
-              <th className="p-3">Share Category</th>
-              <th className="p-3">Quantity</th>
-              <th className="p-3">Face Value</th>
-              <th className="p-3">Total Amount</th>
-              <th className="p-3">Payment Mode</th>
-              <th className="p-3">Reference / UTR</th>
-              <th className="p-3">Date</th>
-              <th className="p-3 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {sharesRecords.length > 0 ? (
-              sharesRecords.map((record) => {
-                const qty = Number(record.numberOfShares) || 1;
-                const fv = Number(record.faceValue) || 0;
-                const amt = Number(record.paymentAmount) || 0;
-                
-                return (
-                  <tr key={record.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3 font-mono font-bold text-slate-800">{record.memberId}</td>
-                    <td className="p-3 font-bold text-slate-900">{record.memberName || record.user || "Member"}</td>
-                    <td className="p-3 text-slate-700 font-semibold">{record.shareType || "Ordinary Shares"}</td>
-                    <td className="p-3 text-slate-900 font-bold">{qty}</td>
-                    <td className="p-3 text-slate-600">₹{fv.toLocaleString('en-IN')}</td>
-                    <td className="p-3 font-extrabold text-[#102a43]">{formatIndianCurrency(amt)}</td>
-                    <td className="p-3 text-slate-700">{record.paymentMode || record.paymentMethod || "Bank Transfer"}</td>
-                    <td className="p-3 font-mono text-slate-600 text-[11px]">{record.referenceNumber || record.transactionId || "N/A"}</td>
-                    <td className="p-3 text-slate-600">{record.applicationDate || record.date || "2026-09-24"}</td>
-                    <td className="p-3 text-right">
-                      <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider ${
-                        (record.status || record.paymentStatus) === "Approved" || (record.status || record.paymentStatus) === "Complete"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-800"
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-teal-700 text-white font-bold uppercase tracking-wider">
+                <th className="p-3.5">Folio ID</th>
+                <th className="p-3.5">Member Name</th>
+                <th className="p-3.5">Category</th>
+                <th className="p-3.5">Quantity</th>
+                <th className="p-3.5">Total Amount (₹)</th>
+                <th className="p-3.5">Payment Mode</th>
+                <th className="p-3.5">Due Date</th>
+                <th className="p-3.5">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+              {loading ? (
+                <tr><td colSpan="8" className="p-8 text-center text-slate-400">Loading dynamic share records from server...</td></tr>
+              ) : paginatedData.length > 0 ? (
+                paginatedData.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3.5 font-bold text-teal-800">{item.id}</td>
+                    <td className="p-3.5 font-semibold text-[#102a43]">{item.memberName}</td>
+                    <td className="p-3.5 text-slate-600">{item.category}</td>
+                    <td className="p-3.5 font-semibold">{item.quantity}</td>
+                    <td className="p-3.5 font-bold text-teal-700">₹{(item.totalAmount || item.quantity * 1000).toLocaleString("en-IN")}</td>
+                    <td className="p-3.5 font-semibold text-slate-700">{item.mode || "UPI"}</td>
+                    <td className="p-3.5 text-slate-600">{item.dueDate || "-"}</td>
+                    <td className="p-3.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                        item.status === "Paid" ? "bg-emerald-100 text-emerald-800" :
+                        item.status === "Installment" ? "bg-sky-100 text-sky-800" :
+                        item.status === "Refund" ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
                       }`}>
-                        {record.status || record.paymentStatus || "Approved"}
+                        {item.status || "Paid"}
                       </span>
                     </td>
                   </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan="10" className="p-6 text-center text-slate-400">
-                  {loading ? "Loading shares records from database..." : loadError || "No shares records found."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="p-8 text-center text-slate-400">No share records found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
+        {/* Pagination & Entries Bar */}
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-600">Per Page Entries:</span>
+            <select
+              value={entriesPerPage}
+              onChange={(e) => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white font-bold text-slate-800 focus:outline-none"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="text-slate-500 ml-2">Showing {paginatedData.length} of {filteredShares.length} entries</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-700 disabled:opacity-40 cursor-pointer"
+            >
+              Previous
+            </button>
+            <span className="font-bold text-slate-700 px-2">Page {currentPage} of {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-700 disabled:opacity-40 cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }
