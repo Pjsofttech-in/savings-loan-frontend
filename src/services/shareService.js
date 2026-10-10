@@ -2,7 +2,7 @@ import apiClient from "./apiClient";
 
 export async function fetchShareAllocations() {
   try {
-    const { data } = await apiClient.get("/shares");
+    const { data } = await apiClient.get("/api/shares");
     return Array.isArray(data) ? data : [];
   } catch (error) {
     if (error.response) {
@@ -21,7 +21,7 @@ export async function fetchShareAllocations() {
 
 export async function createShareAllocation(allocation) {
   try {
-    const { data } = await apiClient.post("/shares", allocation);
+    const { data } = await apiClient.post("/api/shares", allocation);
     return data;
   } catch (error) {
     if (error.response) {
