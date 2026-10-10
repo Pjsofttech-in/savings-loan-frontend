@@ -1,5 +1,5 @@
 // src/Pages/registration/List.jsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import NotificationModal from "../../Components/NotificationModel";
 import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
@@ -13,11 +13,12 @@ export default function List() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
 
-  // Streamlined search state
+  // Streamlined search and status filter
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("All");
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoadingRecords(true);
     Promise.all([fetchMembers(), fetchShareAllocations()])
       .then(([memberRecords, shareRecords]) => {
         setMembers(memberRecords);
@@ -48,6 +49,13 @@ export default function List() {
       })
       .catch((error) => setRecordsError(error.message))
       .finally(() => setLoadingRecords(false));
+  };
+
+  useState(() => {
+    loadData();
+    // Listen for live registration updates
+    window.addEventListener("dataUpdated", loadData);
+    return () => window.removeEventListener("dataUpdated", loadData);
   }, []);
 
   const memberIdsByName = new Map(

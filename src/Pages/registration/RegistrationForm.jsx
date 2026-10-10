@@ -1,5 +1,5 @@
 // src/Pages/registration/RegistrationForm.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "./RegistrationFields";
 import { completeMemberRegistration } from "../../services/paymentService";
 import { getRegistrationSettings } from "../../services/settingsService";
@@ -20,9 +20,31 @@ const ID_DOCUMENT_OPTIONS = [
 ];
 
 export default function RegistrationForm() {
-  const [registrationSettings] = useState(getRegistrationSettings);
-  const [adminRegistrationFee, setAdminRegistrationFee] = useState(500); // One-time fee from settings
-  const [monthlyContribution, setMonthlyContribution] = useState(1000); // Recurring monthly fee
+  const [registrationSettings, setRegistrationSettings] = useState(getRegistrationSettings);
+  
+  // Dynamic fee states
+  const [adminRegistrationFee, setAdminRegistrationFee] = useState(() => {
+    const s = getRegistrationSettings();
+    return s?.amount || s?.fee || 500;
+  });
+
+  const [monthlyContribution, setMonthlyContribution] = useState(() => {
+    const s = getRegistrationSettings();
+    return s?.monthlyFee || 1000;
+  });
+
+  // Listen for real-time settings updates from the Settings page
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const s = getRegistrationSettings();
+      setRegistrationSettings(s);
+      if (s?.amount || s?.fee) setAdminRegistrationFee(s.amount || s.fee);
+      if (s?.monthlyFee) setMonthlyContribution(s.monthlyFee);
+    };
+
+    window.addEventListener("settingsUpdated", handleSettingsUpdate);
+    return () => window.removeEventListener("settingsUpdated", handleSettingsUpdate);
+  }, []);
 
   const [form, setForm] = useState({
     personal: {
@@ -51,17 +73,6 @@ export default function RegistrationForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useState(() => {
-    try {
-      if (registrationSettings?.amount) setAdminRegistrationFee(registrationSettings.amount);
-      else if (registrationSettings?.fee) setAdminRegistrationFee(registrationSettings.fee);
-      
-      if (registrationSettings?.monthlyFee) setMonthlyContribution(registrationSettings.monthlyFee);
-    } catch (err) {
-      console.error("Could not load fee settings:", err);
-    }
-  }, [registrationSettings]);
 
   const updateField = (section, field, value) => {
     setForm((prev) => ({

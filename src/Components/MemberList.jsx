@@ -1,10 +1,11 @@
+// src/Components/MemberList.jsx
 import { useEffect, useMemo, useState } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
 import { fetchMemberById, fetchMembers } from "../services/memberService";
 import { fetchShareAllocations } from "../services/shareService";
 import MemberAvatar from "./MemberAvatar";
 
-const initialFilters = { memberType: "All", year: "All", city: "All", status: "All" };
+const initialFilters = { memberType: "", year: "", city: "", status: "" };
 
 function formatDate(value) {
   if (!value) return "-";
@@ -72,7 +73,7 @@ function MemberDetailsModal({ member, allocations, shareLoadError, loading, erro
             <button
               type="button"
               onClick={onClose}
-              className="mb-6 flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white"
+              className="mb-6 flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white cursor-pointer"
             >
               <span aria-hidden="true">←</span> Back
             </button>
@@ -116,7 +117,7 @@ function MemberDetailsModal({ member, allocations, shareLoadError, loading, erro
               type="button"
               onClick={onClose}
               aria-label="Close member details"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
             >
               ×
             </button>
@@ -257,23 +258,24 @@ export default function MemberList() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [detailError, setDetailError] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadData = () => {
     Promise.all([
-      fetchMembers()
-        .then((data) => { if (isMounted) setMembers(data); })
-        .catch((error) => { if (isMounted) setLoadError(error.message); }),
-      fetchShareAllocations()
-        .then((data) => { if (isMounted) setAllocations(data); })
-        .catch((error) => { if (isMounted) setShareLoadError(error.message); }),
-    ]).finally(() => { if (isMounted) setLoading(false); });
+      fetchMembers().then((data) => setMembers(data)).catch((error) => setLoadError(error.message)),
+      fetchShareAllocations().then((data) => setAllocations(data)).catch((error) => setShareLoadError(error.message)),
+    ]).finally(() => setLoading(false));
+  };
 
-    return () => { isMounted = false; };
+  useEffect(() => {
+    loadData();
+    window.addEventListener("dataUpdated", loadData);
+    return () => window.removeEventListener("dataUpdated", loadData);
   }, []);
 
   const memberTypes = [...new Set(members.map((member) => member.memberType).filter(Boolean))].sort();
   const years = [...new Set(members.map((member) => member.membershipYear).filter(Boolean))].sort();
   const cities = [...new Set(members.map((member) => member.city).filter(Boolean))].sort();
+  const statuses = [...new Set(members.map((member) => member.status).filter(Boolean))].sort();
+
   const shareAmounts = useMemo(() => {
     const totals = new Map();
     allocations.forEach((allocation) => {
@@ -289,10 +291,10 @@ export default function MemberList() {
       .filter(Boolean)
       .some((value) => String(value).toLocaleLowerCase().includes(query));
     return matchesSearch
-      && (filters.memberType === "All" || member.memberType === filters.memberType)
-      && (filters.year === "All" || member.membershipYear === filters.year)
-      && (filters.city === "All" || member.city === filters.city)
-      && (filters.status === "All" || member.status === filters.status);
+      && (!filters.memberType || member.memberType === filters.memberType)
+      && (!filters.year || member.membershipYear === filters.year)
+      && (!filters.city || member.city === filters.city)
+      && (!filters.status || member.status === filters.status);
   });
 
   const clearFilters = () => {
@@ -316,96 +318,111 @@ export default function MemberList() {
 
   return (
     <>
-    <main className="max-w-[1400px] mx-auto px-6 pb-6 pt-0 lg:px-8 lg:pb-8 lg:pt-0 font-sans">
-      <section className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 sm:p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 mb-5">
+    <main className="max-w-[1300px] mx-auto px-4 pb-6 pt-0 lg:px-6 lg:pb-8 lg:pt-0 font-sans text-xs">
+      <section className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
           <input
             aria-label="Search members"
-            className="h-11 px-4 border border-slate-300 rounded-md text-sm outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 sm:col-span-2 xl:col-span-2"
-            placeholder="Search ID, name, mobile, or email"
+            className="h-9 px-3 border border-slate-300 rounded-md text-xs outline-none focus:border-teal-600 sm:col-span-1"
+            placeholder="Search ID, name, mobile..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          {[ ["memberType", "Member Type", memberTypes], ["year", "Joining Year", years], ["city", "City", cities] ].map(([key, label, options]) => (
-            <select
-              key={key}
-              aria-label={label}
-              className="h-11 px-3 border border-slate-300 rounded-md bg-white text-sm text-slate-700 outline-none focus:border-teal-600"
-              value={filters[key]}
-              onChange={(event) => setFilters((current) => ({ ...current, [key]: event.target.value }))}
-            >
-              <option value="All">All {label}s</option>
-              {options.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          ))}
           <select
-            aria-label="Member status"
-            className="h-11 px-3 border border-slate-300 rounded-md bg-white text-sm text-slate-700 outline-none focus:border-teal-600"
+            aria-label="Member Types"
+            className="h-9 px-2 border border-slate-300 rounded-md bg-white text-xs text-slate-700 outline-none focus:border-teal-600 font-bold"
+            value={filters.memberType}
+            onChange={(event) => setFilters((current) => ({ ...current, memberType: event.target.value }))}
+          >
+            <option value="">Member Types</option>
+            {memberTypes.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <select
+            aria-label="Joining Years"
+            className="h-9 px-2 border border-slate-300 rounded-md bg-white text-xs text-slate-700 outline-none focus:border-teal-600 font-bold"
+            value={filters.year}
+            onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
+          >
+            <option value="">Joining Years</option>
+            {years.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <select
+            aria-label="Cities"
+            className="h-9 px-2 border border-slate-300 rounded-md bg-white text-xs text-slate-700 outline-none focus:border-teal-600 font-bold"
+            value={filters.city}
+            onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))}
+          >
+            <option value="">Cities</option>
+            {cities.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <select
+            aria-label="Statuses"
+            className="h-9 px-2 border border-slate-300 rounded-md bg-white text-xs text-slate-700 outline-none focus:border-teal-600 font-bold"
             value={filters.status}
             onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
           >
-            <option value="All">All Statuses</option>
-            {[...new Set(members.map((member) => member.status).filter(Boolean))].sort().map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
+            <option value="">Statuses</option>
+            {statuses.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
         </div>
 
-        {(search || Object.values(filters).some((value) => value !== "All")) && (
-          <button type="button" onClick={clearFilters} className="mb-4 text-xs font-semibold text-teal-800 hover:text-teal-950">
+        {(search || Object.values(filters).some(Boolean)) && (
+          <button type="button" onClick={clearFilters} className="mb-3 text-[11px] font-semibold text-teal-800 hover:text-teal-950 cursor-pointer">
             Clear filters
           </button>
         )}
-        {loadError && <p className="mb-4 text-sm text-red-700" role="alert">{loadError}</p>}
-        {shareLoadError && <p className="mb-4 text-sm text-amber-800" role="status">Share totals unavailable: {shareLoadError}</p>}
+        {loadError && <p className="mb-4 text-xs text-red-700" role="alert">{loadError}</p>}
+        {shareLoadError && <p className="mb-4 text-xs text-amber-800" role="status">Share totals unavailable: {shareLoadError}</p>}
 
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-[1120px] w-full text-left border-collapse text-sm">
+          <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-[#6495ed] text-white font-bold">
-                <th className="px-4 py-3">Member ID</th>
-                <th className="px-4 py-3">Photo</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Mobile No.</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Member Type</th>
-                <th className="px-4 py-3">City</th>
-                <th className="px-4 py-3">Joining Date</th>
-                <th className="px-4 py-3 text-right">Individual Share Amount</th>
+              <tr className="bg-[#6495ed] text-white font-bold text-center">
+                <th className="p-2 border-r border-blue-500 w-20">Member ID</th>
+                <th className="p-2 border-r border-blue-500 w-16">Photo</th>
+                <th className="p-2 border-r border-blue-500">Name</th>
+                <th className="p-2 border-r border-blue-500">Mobile No.</th>
+                <th className="p-2 border-r border-blue-500">Email</th>
+                <th className="p-2 border-r border-blue-500">Member Type</th>
+                <th className="p-2 border-r border-blue-500">Member Fee</th>
+                <th className="p-2 border-r border-blue-500">City</th>
+                <th className="p-2 border-r border-blue-500">Joining Date</th>
+                <th className="p-2 text-right">Share Amount</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-100 text-center">
               {filteredMembers.map((member, index) => (
-                <tr key={member.id} className={index % 2 === 0 ? "bg-[#f7f7f7]" : "bg-white"}>
-                  <td className="px-4 py-3 font-mono font-semibold text-slate-800">
-                    <button type="button" onClick={() => openMemberDetails(member.id)} className="text-left text-teal-800 hover:underline">
+                <tr key={member.id} className={`border-b border-slate-100 ${index % 2 === 0 ? "bg-[#f7f7f7]" : "bg-white"}`}>
+                  <td className="p-2 font-mono font-semibold text-slate-700">
+                    <button type="button" onClick={() => openMemberDetails(member.id)} className="text-teal-800 hover:underline cursor-pointer">
                       {member.id}
                     </button>
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="p-2">
                     <MemberAvatar
                       name={member.fullName}
-                      className="h-10 w-10 rounded-full"
+                      className="h-7 w-7 rounded-full mx-auto"
                     />
                   </td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">
-                    <button type="button" onClick={() => openMemberDetails(member.id)} className="text-left hover:text-teal-800 hover:underline">
+                  <td className="p-2 font-bold text-slate-900 text-left">
+                    <button type="button" onClick={() => openMemberDetails(member.id)} className="hover:text-teal-800 hover:underline cursor-pointer">
                       {member.fullName || "-"}
                     </button>
                   </td>
-                  <td className="px-4 py-3">{member.mobile || "-"}</td>
-                  <td className="px-4 py-3">{member.email || "-"}</td>
-                  <td className="px-4 py-3">{member.memberType || "-"}</td>
-                  <td className="px-4 py-3">{member.city || "-"}</td>
-                  <td className="px-4 py-3">{formatDate(member.joiningDate)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                  <td className="p-2 text-slate-600">{member.mobile || "-"}</td>
+                  <td className="p-2 text-slate-600">{member.email || "-"}</td>
+                  <td className="p-2 text-slate-600">{member.memberType || "-"}</td>
+                  <td className="p-2 font-bold text-teal-700">₹{member.registrationFee || member.memberFee || 500}</td>
+                  <td className="p-2 text-slate-600">{member.city || "-"}</td>
+                  <td className="p-2 text-slate-600">{formatDate(member.joiningDate)}</td>
+                  <td className="p-2 text-right font-bold text-slate-900">
                     {shareLoadError ? "-" : formatIndianCurrency(shareAmounts.get(String(member.id)) || 0)}
                   </td>
                 </tr>
               ))}
               {!filteredMembers.length && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={10} className="p-6 text-center text-slate-500">
                     {loading ? "Loading members..." : loadError ? "Members could not be loaded." : "No members match these filters."}
                   </td>
                 </tr>
