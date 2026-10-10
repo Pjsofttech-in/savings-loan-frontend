@@ -104,11 +104,13 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
   }, [selectedYear]);
 
   const currentYearSavings = monthlySavingsBreakdown[selectedYear] || [];
-  const totalYearAmount = currentYearSavings.reduce((acc, curr) => acc + curr.total, 0);
-  const totalYearPaid = currentYearSavings.reduce((acc, curr) => acc + curr.paid, 0);
-  const totalYearPending = currentYearSavings.reduce((acc, curr) => acc + curr.pending, 0);
+  const totalYearAmount = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+  const totalYearPaid = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.paid) || 0), 0);
+  const totalYearPending = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.pending) || 0), 0);
   
-  const maxMonthValue = Math.max(...currentYearSavings.map(s => s.total), 20000);
+  const maxMonthValue = currentYearSavings.length > 0 
+    ? Math.max(...currentYearSavings.map(s => Number(s.total) || 0), 20000)
+    : 20000;
 
   return (
     <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-[calc(100vh-76px)] font-sans space-y-6">

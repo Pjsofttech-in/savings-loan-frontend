@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-const isServer = typeof window === 'undefined' || import.meta.env?.SSR;
-
 const apiClient = axios.create({
-  baseURL: isServer ? 'http://localhost:8081/api' : '',
+  baseURL: 'http://localhost:8081', // Root backend URL (without /api)
   headers: {
     'Content-Type': 'application/json',
   },
