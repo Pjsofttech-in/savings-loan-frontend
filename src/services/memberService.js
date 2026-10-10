@@ -34,7 +34,9 @@ export async function fetchMembers() {
       try {
         const parsedCache = JSON.parse(cached);
         if (Array.isArray(parsedCache)) return parsedCache;
-      } catch {}
+      } catch (parseErr) {
+        console.warn("Failed to parse member cache", parseErr);
+      }
     }
     if (!error.response) {
       throw new Error("Could not connect to the member list. Check that the backend is running.", { cause: error });
@@ -45,7 +47,7 @@ export async function fetchMembers() {
 
 export async function fetchMemberById(memberId) {
   try {
-    const { data } = await apiClient.get(/members/);
+    const { data } = await apiClient.get(`/api/members/${encodeURIComponent(memberId)}`);
     return data;
   } catch (error) {
     const cached = localStorage.getItem(MEMBERS_CACHE_KEY);
@@ -54,7 +56,9 @@ export async function fetchMemberById(memberId) {
         const members = JSON.parse(cached);
         const found = members.find(m => String(m.id) === String(memberId));
         if (found) return found;
-      } catch {}
+      } catch (parseErr) {
+        console.warn("Failed to parse member cache", parseErr);
+      }
     }
     if (!error.response) {
       throw new Error("Could not connect to the member lookup. Check that the backend is running.", { cause: error });
@@ -67,7 +71,8 @@ function readRegistrations() {
   try {
     const saved = localStorage.getItem(REGISTRATIONS_STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
-  } catch {
+  } catch (parseErr) {
+    console.warn("Failed to read local registrations", parseErr);
     return [];
   }
 }
