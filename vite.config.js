@@ -1,14 +1,12 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+// src/services/apiClient.js
+import axios from 'axios';
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  base: "/savings",
-  server: {
-    proxy: {
-      '/api': 'http://localhost:8081',
-    },
+const apiClient = axios.create({
+  baseURL: '/api', // Correct: Routes through Vite proxy
+  // baseURL: 'http://localhost:8081/api', // Incorrect: Bypasses proxy and triggers Chrome network block
+  headers: {
+    'Content-Type': 'application/json',
   },
-})
+});
+
+export default apiClient;
