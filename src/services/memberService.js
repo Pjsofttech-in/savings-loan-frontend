@@ -16,12 +16,20 @@ function getMemberError(error) {
   );
 }
 
+// Cross-browser safe UUID generator fallback
+function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'id_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+}
+
 /**
  * Fetch members with automatic offline fallback to localStorage cache.
  */
 export async function fetchMembers() {
   try {
-    const { data } = await apiClient.get("/api/members");
+    const { data } = await apiClient.get("/members");
     const membersList = Array.isArray(data) ? data : [];
     
     // Save successfully fetched data to local cache
@@ -59,7 +67,7 @@ export async function fetchMembers() {
 export async function fetchMemberById(memberId) {
   try {
     const { data } = await apiClient.get(
-      `/api/members/${encodeURIComponent(memberId)}`,
+      `/members/${encodeURIComponent(memberId)}`,
     );
     return data;
   } catch (error) {
@@ -98,18 +106,28 @@ function readRegistrations() {
   }
 }
 
-export function submitMemberRegistration(data) {
-  const registration = {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    ...data,
-  };
-  const registrations = [...readRegistrations(), registration];
-  localStorage.setItem(
-    REGISTRATIONS_STORAGE_KEY,
-    JSON.stringify(registrations),
-  );
-  return registration;
+/**
+ * Submit member registration directly to the backend database 
+ * with local fallback support.
+ */
+export async function submitMemberRegistration(memberData) {
+  try {
+    const { data } = await apiClient.post("/members", memberData);
+    return data;
+  } catch {
+    console.warn("Backend offline during registration. Storing locally as fallback.");
+    const registration = {
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+      ...memberData,
+    };
+    const registrations = [...readRegistrations(), registration];
+    localStorage.setItem(
+      REGISTRATIONS_STORAGE_KEY,
+      JSON.stringify(registrations),
+    );
+    return registration;
+  }
 }
 
 export function getMemberRegistrations() {
