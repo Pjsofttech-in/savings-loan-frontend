@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // src/services/settingsService.js
 
 const DEFAULT_SETTINGS = {
@@ -8,6 +9,16 @@ const DEFAULT_SETTINGS = {
   years: ["2026", "2027", "2028"]
 };
 
+=======
+const DEFAULT_SETTINGS = {
+  amount: 500,
+  fee: 500,
+  monthlyFee: 1000,
+  memberTypes: ["General", "Lifetime", "Honorary"],
+  years: ["2026", "2027", "2028"]
+};
+
+>>>>>>> Stashed changes
 export const getRegistrationSettings = () => {
   try {
     const storedSettings = localStorage.getItem("registrationSettings");
