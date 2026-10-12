@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-const isServer = typeof window === 'undefined' || import.meta.env?.SSR;
-
 const apiClient = axios.create({
-  baseURL: isServer ? 'http://localhost:8081/api' : '',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
