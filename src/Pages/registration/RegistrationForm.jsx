@@ -22,7 +22,7 @@ const ID_DOCUMENT_OPTIONS = [
 export default function RegistrationForm() {
   const [registrationSettings, setRegistrationSettings] = useState(getRegistrationSettings);
   
-  // Dynamic fee states
+  // Dynamic fee states fetched from settings service
   const [adminRegistrationFee, setAdminRegistrationFee] = useState(() => {
     const s = getRegistrationSettings();
     return s?.amount || s?.fee || 500;
@@ -173,7 +173,7 @@ export default function RegistrationForm() {
             {/* Password */}
             <FormField id="member-password" label="Password *" type="password" value={form.personal.password} onChange={(val) => updateField("personal", "password", val)} error={errors.password} placeholder="Min 8 chars" required />
 
-            {/* Monthly Contribution right after password */}
+            {/* Monthly Contribution */}
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-emerald-700 uppercase">Monthly Contribution</span>
               <span className="text-sm font-extrabold text-emerald-900">₹{monthlyContribution}</span>
@@ -202,7 +202,7 @@ export default function RegistrationForm() {
           </div>
         </FormSection>
 
-        {/* Section 3: Witness Verification & Final Payment Details */}
+        {/* Section 3: Witness Verification & Payment Details */}
         <FormSection id="witness-details" number="3" title="Witness Verification & Payment Details" active={true}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <FormField id="witness-name" label="Witness Name *" value={form.witness.witnessName} onChange={(val) => updateField("witness", "witnessName", val)} error={errors.witnessName} placeholder="Name" required />
@@ -220,16 +220,15 @@ export default function RegistrationForm() {
             </div>
           </div>
 
-          {/* Payment Status, Mode, Transaction UTR & Registration Fee placed after witness section */}
+          {/* Registration Fee placed right before Payment Status */}
           <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
-            <SelectField id="payment-status" label="Payment Status *" value={form.personal.paymentStatus} onChange={(val) => updateField("personal", "paymentStatus", val)} options={PAYMENT_STATUS_OPTIONS} required />
-            <SelectField id="mode-of-payment" label="Payment Mode *" value={form.personal.paymentMode} onChange={(val) => updateField("personal", "paymentMode", val)} options={PAYMENT_MODES} required />
-            <FormField id="transaction-id" label="Transaction ID / UTR" value={form.personal.transactionId} onChange={(val) => updateField("personal", "transactionId", val)} placeholder="Enter UTR" />
-            
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-blue-700 uppercase">Registration Fee</span>
               <span className="text-sm font-extrabold text-blue-900">₹{adminRegistrationFee}</span>
             </div>
+            <SelectField id="payment-status" label="Payment Status *" value={form.personal.paymentStatus} onChange={(val) => updateField("personal", "paymentStatus", val)} options={PAYMENT_STATUS_OPTIONS} required />
+            <SelectField id="mode-of-payment" label="Payment Mode *" value={form.personal.paymentMode} onChange={(val) => updateField("personal", "paymentMode", val)} options={PAYMENT_MODES} required />
+            <FormField id="transaction-id" label="Transaction ID / UTR" value={form.personal.transactionId} onChange={(val) => updateField("personal", "transactionId", val)} placeholder="Enter UTR" />
           </div>
 
           {submissionError && (
