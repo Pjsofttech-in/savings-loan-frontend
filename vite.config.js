@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -8,7 +9,11 @@ export default defineConfig({
   base: "/savings",
   server: {
     proxy: {
-      '/api': 'http://localhost:8081',
+      '/api': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

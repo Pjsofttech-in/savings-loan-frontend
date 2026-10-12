@@ -118,13 +118,7 @@ export default function SharesApplicationForm() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto p-6 lg:p-8 font-sans">
-      <div className="mb-1 pb-1 border-b border-slate-200 flex justify-between items-center">
-        <div>
-          <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Financial Workflow</span>
-          <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Shares Application Form</h1>
-        </div>
-      </div>
+    <div className="shares-form-content max-w-[1400px] mx-auto p-6 lg:p-8 font-sans">
 
       {isSubmitted && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm font-bold flex items-center justify-between">

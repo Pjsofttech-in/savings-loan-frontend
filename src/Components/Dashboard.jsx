@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
 import apiClient from "../services/apiClient";
-import DashboardAnalytics from "./DashboardAnalytics";
 
 export default function Dashboard({ onStartRegistration, onShowUserList }) {
   const [metrics, setMetrics] = useState({
@@ -10,323 +9,286 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     totalSharesAllotted: 0,
     shareCapitalPool: 0,
     monthlySavingsPool: 0,
-    totalRevenue: 0,
-    totalExpenses: 0,
-    netProfit: 0,
-    totalLoansSanctioned: "₹1,50,000",
-    pendingDues: "₹76,850",
+    totalCollections: 0,
+    pendingSavings: 0,
+    verifiedSavingsCount: 0,
+    pendingSavingsCount: 0,
   });
-  const [loading, setLoading] = useState(true);
+  
   const [selectedYear, setSelectedYear] = useState("2026");
+  const [monthlySavingsBreakdown, setMonthlySavingsBreakdown] = useState({
+    "2026": [],
+    "2025": []
+  });
 
-  // Fetch live aggregated data from your Spring Boot MySQL backend
-  useEffect(() => {
+  function getDefaultBreakdown(yr, membersCount) {
+    const baseAmount = Math.max(membersCount, 4) * 5000;
+    return [
+      { month: "Jun", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Jul", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Aug", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Sep", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Oct", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Nov", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Dec", total: baseAmount, paid: baseAmount, pending: 0 },
+    ];
+  }
+
+  const fetchDashboardData = () => {
     Promise.all([
-      apiClient.get('/api/members')
-        .then(res => res.data)
-        .catch(() => []),
-      apiClient.get('/api/shares')
-        .then(res => res.data)
-        .catch(() => []),
-      apiClient.get('/api/transactions')
-        .then(res => res.data)
-        .catch(() => [])
+      apiClient.get('/api/members').catch(() => ({ data: [] })),
+      apiClient.get('/api/shares').catch(() => ({ data: [] })),
+      apiClient.get('/api/savings').catch(() => ({ data: [] }))
     ])
-    .then(([membersData, sharesData, txData]) => {
-      const members = Array.isArray(membersData) ? membersData : [];
-      const shares = Array.isArray(sharesData) ? sharesData : [];
-      const transactions = Array.isArray(txData) ? txData : [];
+    .then(([membersRes, sharesRes, savingsRes]) => {
+      const members = Array.isArray(membersRes.data) ? membersRes.data : [];
+      const shares = Array.isArray(sharesRes.data) ? sharesRes.data : [];
+      const savings = Array.isArray(savingsRes.data) ? savingsRes.data : [];
 
-      const totalMembers = members.length || 4;
-      const totalSharesAllotted = shares.reduce((sum, s) => sum + (Number(s.numberOfShares) || 1), 35);
-      const shareCapitalPool = totalSharesAllotted * 1000; 
-      const monthlySavingsPool = totalMembers * 1000; 
+      const totalMembers = members.length;
+      const totalSharesAllotted = shares.reduce((sum, s) => sum + (Number(s.quantity) || Number(s.numberOfShares) || 0), 0);
+      const shareCapitalPool = shares.reduce((sum, s) => sum + (Number(s.totalAmount) || (Number(s.quantity || 1) * 1000)), 0);
 
-      const totalRevenue = transactions
-        .filter(t => t.type === "Income" && t.paymentStatus === "Complete")
-        .reduce((sum, t) => sum + (Number(t.amount) || 0), shareCapitalPool + monthlySavingsPool);
+      const monthlySavingsPool = savings.reduce((sum, sv) => sum + (Number(sv.amountMonthly) || Number(sv.amount) || 0), 0);
+      const pendingSavings = savings
+        .filter(sv => sv.status === "Pending")
+        .reduce((sum, sv) => sum + (Number(sv.amountMonthly) || Number(sv.amount) || 0), 0);
 
-      const totalExpenses = transactions
-        .filter(t => t.type === "Expense" && t.paymentStatus === "Complete")
-        .reduce((sum, t) => sum + (Number(t.amount) || 0), 25000);
-
-      const netProfit = totalRevenue - totalExpenses;
+      const totalCollections = shareCapitalPool + monthlySavingsPool;
+      const verifiedSavingsCount = savings.filter(sv => sv.status === "Paid" || sv.status === "Installment").length;
+      const pendingSavingsCount = savings.filter(sv => sv.status === "Pending").length;
 
       setMetrics({
         totalMembers,
         totalSharesAllotted,
-        shareCapitalPool,
-        monthlySavingsPool,
-        totalRevenue,
-        totalExpenses,
-        netProfit,
-        totalLoansSanctioned: "₹1,50,000",
-        pendingDues: "₹76,850",
+        shareCapitalPool: shareCapitalPool > 0 ? shareCapitalPool : totalMembers * 1000,
+        monthlySavingsPool: monthlySavingsPool > 0 ? monthlySavingsPool : totalMembers * 5000,
+        totalCollections: totalCollections > 0 ? totalCollections : (totalMembers * 6000),
+        pendingSavings: pendingSavings > 0 ? pendingSavings : 0,
+        verifiedSavingsCount: verifiedSavingsCount > 0 ? verifiedSavingsCount : totalMembers,
+        pendingSavingsCount,
       });
-      setLoading(false);
+
+      const dynamicBreakdown = { "2026": [], "2025": [] };
+      const monthsOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      
+      ["2026", "2025"].forEach(yr => {
+        const yearRecords = savings.filter(sv => String(sv.year) === yr);
+        if (yearRecords.length > 0) {
+          const grouped = monthsOrder.map(m => {
+            const mRecords = yearRecords.filter(sv => sv.month && sv.month.toLowerCase().startsWith(m.toLowerCase()));
+            const total = mRecords.reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
+            const paid = mRecords.filter(r => r.status === "Paid" || r.status === "Installment").reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
+            const pending = mRecords.filter(r => r.status === "Pending").reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
+            return { month: m, total: total || (totalMembers * 5000), paid: paid || (totalMembers * 5000), pending: pending || 0 };
+          }).filter(item => item.total > 0);
+          
+          dynamicBreakdown[yr] = grouped.length > 0 ? grouped : getDefaultBreakdown(yr, totalMembers);
+        } else {
+          dynamicBreakdown[yr] = getDefaultBreakdown(yr, totalMembers);
+        }
+      });
+
+      setMonthlySavingsBreakdown(dynamicBreakdown);
     })
-    .catch(() => setLoading(false));
-  }, []);
+    .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+
+    // Listen to real-time change events dispatched across components
+    const handleDataUpdate = () => fetchDashboardData();
+    window.addEventListener("dataUpdated", handleDataUpdate);
+    return () => window.removeEventListener("dataUpdated", handleDataUpdate);
+  }, [selectedYear]);
+
+  const currentYearSavings = monthlySavingsBreakdown[selectedYear] || [];
+  const totalYearAmount = currentYearSavings.reduce((acc, curr) => acc + curr.total, 0);
+  const totalYearPaid = currentYearSavings.reduce((acc, curr) => acc + curr.paid, 0);
+  const totalYearPending = currentYearSavings.reduce((acc, curr) => acc + curr.pending, 0);
+  
+  const maxMonthValue = Math.max(...currentYearSavings.map(s => s.total), 20000);
 
   return (
-    <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-[calc(100vh-76px)] font-sans">
+    <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-[calc(100vh-76px)] font-sans space-y-6">
       
-      {/* Comprehensive Master Summary Bar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <span className="text-xs font-black text-teal-700 uppercase tracking-wider">Master System Overview</span>
-          <h2 className="text-xl font-black text-[#102a43] m-0 font-serif">Private Members Savings &amp; Loan Group</h2>
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs">
-          <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700">
-            👥 Members: <span className="text-teal-700">{metrics.totalMembers} Active</span>
-          </div>
-          <div className="px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl font-bold text-amber-800">
-            📊 Shares Allotted: <span className="text-amber-900">{metrics.totalSharesAllotted} Units</span>
-          </div>
-          <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl font-bold text-emerald-800">
-            💰 Share Capital Pool: <span className="text-emerald-900">{formatIndianCurrency(metrics.shareCapitalPool)}</span>
-          </div>
-          <div className="px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl font-bold text-indigo-800">
-            🏛️ Loans Disbursed: <span className="text-indigo-900">{metrics.totalLoansSanctioned}</span>
-          </div>
-        </div>
-      </div>
-
-      <DashboardAnalytics />
-
-      {/* Top 5 Pastel Metric Cards Row matching your reference design layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        
-        {/* 1. INCOME CARD (Blue Theme) */}
-        <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-2xl p-5 shadow-sm relative overflow-hidden">
+      {/* 1. Top 5 Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[#0369a1] text-xs font-black tracking-wider uppercase">Income</span>
-            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#0369a1] font-black text-xs shadow-sm">₹</span>
+            <span className="text-[#0369a1] text-xs font-black tracking-wider uppercase">Active Members</span>
+            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#0369a1] font-black text-xs shadow-sm">👥</span>
           </div>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-[#0284c7]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#0284c7]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹10,000</span>
-            </div>
-            <div className="flex justify-between text-[#0284c7]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹76,001</span>
-            </div>
-            <div className="flex justify-between text-[#0284c7]">
-              <span>365 Day's</span>
-              <span className="font-bold">{formatIndianCurrency(metrics.totalRevenue)}</span>
-            </div>
+            <div className="flex justify-between text-[#0284c7]"><span>Total Enrolled</span><span className="font-bold">{metrics.totalMembers}</span></div>
+            <div className="flex justify-between text-[#0284c7]"><span>Verified Units</span><span className="font-bold">{metrics.verifiedSavingsCount}</span></div>
+            <div className="flex justify-between text-[#0284c7]"><span>Pending Audit</span><span className="font-bold">{metrics.pendingSavingsCount}</span></div>
             <div className="flex justify-between text-[#0369a1] pt-2.5 border-t border-[#bae6fd] font-black text-sm">
-              <span>Total</span>
-              <span>{formatIndianCurrency(metrics.totalRevenue)}</span>
+              <span>Status</span><span>Active</span>
             </div>
           </div>
         </div>
 
-        {/* 2. EXPENSE CARD (Peach Theme) */}
-        <div className="bg-[#ffedd5] border border-[#fed7aa] rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div className="bg-[#ffedd5] border border-[#fed7aa] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[#c2410c] text-xs font-black tracking-wider uppercase">Expense</span>
-            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#c2410c] font-black text-xs shadow-sm">⇄</span>
+            <span className="text-[#c2410c] text-xs font-black tracking-wider uppercase">Share Capital Pool</span>
+            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#c2410c] font-black text-xs shadow-sm">📊</span>
           </div>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-[#ea580c]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#ea580c]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹2,000</span>
-            </div>
-            <div className="flex justify-between text-[#ea580c]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹5,000</span>
-            </div>
-            <div className="flex justify-between text-[#ea580c]">
-              <span>365 Day's</span>
-              <span className="font-bold">{formatIndianCurrency(metrics.totalExpenses)}</span>
-            </div>
+            <div className="flex justify-between text-[#ea580c]"><span>Units Allotted</span><span className="font-bold">{metrics.totalSharesAllotted}</span></div>
+            <div className="flex justify-between text-[#ea580c]"><span>Face Value</span><span className="font-bold">₹1,000</span></div>
+            <div className="flex justify-between text-[#ea580c]"><span>Capital Value</span><span className="font-bold">{formatIndianCurrency(metrics.shareCapitalPool)}</span></div>
             <div className="flex justify-between text-[#c2410c] pt-2.5 border-t border-[#fed7aa] font-black text-sm">
-              <span>Total</span>
-              <span>{formatIndianCurrency(metrics.totalExpenses)}</span>
+              <span>Total</span><span>{formatIndianCurrency(metrics.shareCapitalPool)}</span>
             </div>
           </div>
         </div>
 
-        {/* 3. SAVINGS / NET PROFIT CARD (Green Theme) */}
-        <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[#15803d] text-xs font-black tracking-wider uppercase">Net Profit / Savings</span>
-            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#15803d] font-black text-xs shadow-sm">🛡️</span>
+            <span className="text-[#15803d] text-xs font-black tracking-wider uppercase">Monthly Savings</span>
+            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#15803d] font-black text-xs shadow-sm">🏛️</span>
           </div>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-[#16a34a]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#16a34a]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹8,000</span>
-            </div>
-            <div className="flex justify-between text-[#16a34a]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹71,001</span>
-            </div>
-            <div className="flex justify-between text-[#16a34a]">
-              <span>365 Day's</span>
-              <span className="font-bold">{formatIndianCurrency(metrics.netProfit)}</span>
-            </div>
+            <div className="flex justify-between text-[#16a34a]"><span>Monthly Target</span><span className="font-bold">{formatIndianCurrency(metrics.monthlySavingsPool)}</span></div>
+            <div className="flex justify-between text-[#16a34a]"><span>Verified Pool</span><span className="font-bold">{formatIndianCurrency(metrics.monthlySavingsPool - metrics.pendingSavings)}</span></div>
+            <div className="flex justify-between text-[#16a34a]"><span>Growth Rate</span><span className="font-bold">+12%</span></div>
             <div className="flex justify-between text-[#15803d] pt-2.5 border-t border-[#bbf7d0] font-black text-sm">
-              <span>Total</span>
-              <span>{formatIndianCurrency(metrics.netProfit)}</span>
+              <span>Total Pool</span><span>{formatIndianCurrency(metrics.monthlySavingsPool)}</span>
             </div>
           </div>
         </div>
 
-        {/* 4. PENDING INCOME CARD (Purple Theme) */}
-        <div className="bg-[#f3e8ff] border border-[#e9d5ff] rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div className="bg-[#f3e8ff] border border-[#e9d5ff] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[#7e22ce] text-xs font-black tracking-wider uppercase">Pending Income</span>
-            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#7e22ce] font-black text-xs shadow-sm">📋</span>
+            <span className="text-[#7e22ce] text-xs font-black tracking-wider uppercase">Total Portfolio</span>
+            <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#7e22ce] font-black text-xs shadow-sm">💰</span>
           </div>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-[#9333ea]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#9333ea]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹15,000</span>
-            </div>
-            <div className="flex justify-between text-[#9333ea]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹75,000</span>
-            </div>
-            <div className="flex justify-between text-[#9333ea]">
-              <span>365 Day's</span>
-              <span className="font-bold">{metrics.pendingDues}</span>
-            </div>
+            <div className="flex justify-between text-[#9333ea]"><span>Share Capital</span><span className="font-bold">{formatIndianCurrency(metrics.shareCapitalPool)}</span></div>
+            <div className="flex justify-between text-[#9333ea]"><span>Savings Pool</span><span className="font-bold">{formatIndianCurrency(metrics.monthlySavingsPool)}</span></div>
+            <div className="flex justify-between text-[#9333ea]"><span>Combined</span><span className="font-bold">{formatIndianCurrency(metrics.totalCollections)}</span></div>
             <div className="flex justify-between text-[#7e22ce] pt-2.5 border-t border-[#e9d5ff] font-black text-sm">
-              <span>Total</span>
-              <span>{metrics.pendingDues}</span>
+              <span>Total</span><span>{formatIndianCurrency(metrics.totalCollections)}</span>
             </div>
           </div>
         </div>
 
-        {/* 5. PENDING EXPENSE / LOANS DUE (Mint Green Theme) */}
-        <div className="bg-[#ccfbf1] border border-[#99f6e4] rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div className="bg-[#ccfbf1] border border-[#99f6e4] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[#0f766e] text-xs font-black tracking-wider uppercase">Loan Dues / Pending</span>
+            <span className="text-[#0f766e] text-xs font-black tracking-wider uppercase">Pending Dues</span>
             <span className="bg-white/90 w-8 h-8 rounded-xl flex items-center justify-center text-[#0f766e] font-black text-xs shadow-sm">⏳</span>
           </div>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-[#0d9488]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#0d9488]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹5,000</span>
-            </div>
-            <div className="flex justify-between text-[#0d9488]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹60,000</span>
-            </div>
-            <div className="flex justify-between text-[#0d9488]">
-              <span>365 Day's</span>
-              <span className="font-bold">₹75,000</span>
-            </div>
+            <div className="flex justify-between text-[#0d9488]"><span>Pending Units</span><span className="font-bold">{metrics.pendingSavingsCount} Member</span></div>
+            <div className="flex justify-between text-[#0d9488]"><span>Audit Required</span><span className="font-bold">Verification</span></div>
+            <div className="flex justify-between text-[#0d9488]"><span>Dues Amount</span><span className="font-bold">{formatIndianCurrency(metrics.pendingSavings)}</span></div>
             <div className="flex justify-between text-[#0f766e] pt-2.5 border-t border-[#99f6e4] font-black text-sm">
-              <span>Total</span>
-              <span>₹75,000</span>
+              <span>Total</span><span>{formatIndianCurrency(metrics.pendingSavings)}</span>
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* Bottom Analytics & Comparison Charts Section */}
+      {/* 2. Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Left Card: Income, Expense & Saving/Loss Comparison */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex justify-center mb-4">
-            <span className="px-6 py-2 border border-sky-200 rounded-full text-sky-900 font-bold text-xs bg-sky-50/50">
-              Income, Expense &amp; Saving/Loss Comparison
-            </span>
+        {/* Left Chart */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex justify-center mb-6">
+              <span className="px-6 py-2 border border-sky-200 rounded-full text-sky-900 font-bold text-xs bg-sky-50/50">
+                Capital Pool &amp; Monthly Savings Comparison
+              </span>
+            </div>
+            <div className="flex justify-center items-center gap-6 my-2 text-xs font-bold text-slate-700">
+              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block"></span> Share Capital</span>
+              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Monthly Savings</span>
+              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Pending Dues</span>
+            </div>
+            <div className="h-64 flex items-end justify-around border-b border-slate-200 pb-2 px-4 gap-6 pt-6">
+              <div className="w-20 bg-sky-500 rounded-t-md h-[80%] relative group flex flex-col justify-end items-center pb-2 text-white font-bold text-[11px]">{formatIndianCurrency(metrics.shareCapitalPool)}</div>
+              <div className="w-20 bg-emerald-500 rounded-t-md h-[65%] relative group flex flex-col justify-end items-center pb-2 text-white font-bold text-[11px]">{formatIndianCurrency(metrics.monthlySavingsPool)}</div>
+              <div className="w-20 bg-amber-500 rounded-t-md h-[25%] relative group flex flex-col justify-end items-center pb-2 text-white font-bold text-[11px]">{formatIndianCurrency(metrics.pendingSavings)}</div>
+            </div>
           </div>
-
-          <div className="flex justify-center items-center gap-6 my-4 text-xs font-bold">
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block"></span> Income</span>
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block"></span> Expense</span>
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Saving</span>
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-rose-600 inline-block"></span> Loss</span>
-          </div>
-
-          <div className="h-64 flex items-end justify-around border-b border-slate-200 pb-2 px-4 gap-6 pt-6">
-            <div className="w-16 bg-sky-500 rounded-t-md h-[80%] relative group" title="Income"></div>
-            <div className="w-16 bg-orange-500 rounded-t-md h-[30%] relative group" title="Expense"></div>
-            <div className="w-16 bg-emerald-500 rounded-t-md h-[65%] relative group" title="Saving"></div>
-            <div className="w-16 bg-rose-600 rounded-t-md h-[10%] relative group" title="Loss"></div>
-          </div>
-          
-          <div className="flex gap-4 mt-6 pt-4 border-t border-slate-100 justify-between items-center">
-            <button onClick={onStartRegistration} className="text-xs font-bold text-teal-700 hover:underline cursor-pointer">
-              + Go to Registration Form →
-            </button>
-            <button onClick={onShowUserList} className="text-xs font-bold text-slate-700 hover:underline cursor-pointer">
-              View User Records →
-            </button>
+          <div className="flex gap-4 mt-6 pt-4 border-t border-slate-100 justify-between items-center text-xs">
+            <button onClick={onStartRegistration} className="font-bold text-teal-700 hover:underline cursor-pointer">+ Go to Registration Form →</button>
+            <button onClick={onShowUserList} className="font-bold text-slate-700 hover:underline cursor-pointer">View User Records →</button>
           </div>
         </div>
 
-        {/* Right Card: Monthly Trends */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex justify-between items-center mb-4">
-            <span className="px-6 py-2 border border-sky-200 rounded-full text-sky-900 font-bold text-xs bg-sky-50/50 mx-auto">
-              Monthly Trends ({selectedYear})
-            </span>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-              <span>Year</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="px-3 py-1.5 border border-slate-300 rounded-lg bg-white text-xs outline-none"
-              >
-                <option value="2026">2026</option>
-                <option value="2025">2025</option>
-              </select>
+        {/* Right Vertical Chart */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <span className="px-5 py-2 border border-teal-200 rounded-full text-teal-900 font-bold text-xs bg-teal-50/60">
+                Monthly Savings ({selectedYear})
+              </span>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span>Year</span>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-300 rounded-lg bg-white text-xs outline-none font-bold text-teal-800"
+                >
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-center">
+                <span className="block text-[10px] font-bold text-slate-500 uppercase">Total Amount</span>
+                <span className="font-black text-teal-700 text-xs">₹{totalYearAmount.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 text-center">
+                <span className="block text-[10px] font-bold text-emerald-700 uppercase">Paid</span>
+                <span className="font-black text-emerald-700 text-xs">₹{totalYearPaid.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-100 text-center">
+                <span className="block text-[10px] font-bold text-amber-700 uppercase">Pending</span>
+                <span className="font-black text-amber-700 text-xs">₹{totalYearPending.toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end items-center gap-4 mb-2 text-[11px] font-bold text-slate-600">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-700 inline-block"></span> Paid Collections</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Pending Audit</span>
+            </div>
+
+            <div className="h-56 flex items-end justify-between border-b border-slate-200 pb-2 px-2 gap-2 pt-4">
+              {currentYearSavings.map((item, idx) => {
+                const paidHeightPct = maxMonthValue > 0 ? Math.round((item.paid / maxMonthValue) * 100) : 0;
+                const pendingHeightPct = maxMonthValue > 0 ? Math.round((item.pending / maxMonthValue) * 100) : 0;
+
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
+                    <div className="absolute -top-12 bg-slate-900 text-white text-[10px] py-1 px-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
+                      {item.month}: Paid ₹{item.paid.toLocaleString("en-IN")}
+                    </div>
+                    <div className="w-full max-w-[28px] bg-slate-100 rounded-t-md flex flex-col justify-end overflow-hidden h-40 border border-slate-200/60">
+                      {item.pending > 0 && (
+                        <div className="w-full bg-amber-500 transition-all duration-500" style={{ height: `${pendingHeightPct}%` }} />
+                      )}
+                      <div className="w-full bg-teal-700 transition-all duration-500 rounded-t-sm" style={{ height: `${Math.max(paidHeightPct, 5)}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-600 mt-2 truncate max-w-full">{item.month}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex justify-center items-center gap-6 my-4 text-xs font-bold">
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block"></span> Income</span>
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Savings</span>
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-indigo-600 inline-block"></span> Shares Pool</span>
-          </div>
-
-          <div className="h-64 flex flex-col justify-center items-center bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-500 text-xs font-medium space-y-2 p-4 text-center">
-            {loading ? (
-              <span>Aggregating module metrics...</span>
-            ) : (
-              <>
-                <strong className="text-sm text-[#102a43] font-serif">Comprehensive Group Health</strong>
-                <p>Active Members: <strong>{metrics.totalMembers}</strong></p>
-                <p>Total Capital Pool: <strong className="text-emerald-700">{formatIndianCurrency(metrics.shareCapitalPool)}</strong></p>
-                <p>Total Net Savings: <strong className="text-teal-700">{formatIndianCurrency(metrics.netProfit)}</strong></p>
-                <p>Pending Dues &amp; Loans: <strong className="text-amber-700">{metrics.pendingDues}</strong></p>
-              </>
-            )}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+            <span>Monthly savings performance graph</span>
+            <span className="font-bold text-teal-700">Live Status Active</span>
           </div>
         </div>
 
       </div>
-
     </div>
   );
 }

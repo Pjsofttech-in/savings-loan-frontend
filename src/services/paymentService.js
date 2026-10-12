@@ -1,32 +1,44 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8081";
+import apiClient from "./apiClient";
 
 async function request(path, options = {}) {
-  const isFormData = options.body instanceof FormData;
-  let response;
+  const { body, ...requestOptions } = options;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
+    const { data } = await apiClient.request({
+      url: path,
+      ...requestOptions,
+      data: body,
       headers: {
-        ...(isFormData ? {} : { "Content-Type": "application/json" }),
-        ...options.headers,
+        ...(body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+        ...requestOptions.headers,
       },
     });
-  } catch {
-    throw new Error(`Payment API at ${API_BASE_URL} is unreachable or blocked. Restart the backend and verify its CORS settings.`);
-  }
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      throw new Error(
+        `Payment API at ${apiClient.defaults.baseURL} is unreachable or blocked. Restart the backend and verify its CORS settings.`,
+        { cause: error },
+      );
+    }
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = response.status === 503
-      ? "Registration fee is not configured. Set a positive REGISTRATION_FEE in the backend environment and restart the API."
-      : data.detail || data.message || "The server could not process this request.";
-    throw new Error(message);
+    const responseData = error.response.data || {};
+    const message = responseData.detail || responseData.message || (error.response.status === 503
+      ? "Registration fee or payment credentials are not configured."
+      : "The server could not process this request.");
+    throw new Error(message, { cause: error });
   }
-  return data;
 }
 
 export function getPaymentConfiguration() {
   return request("/api/payments/config");
+}
+
+export function saveRegistrationFee(amount, adminPassword) {
+  return request("/api/payments/registration-fee", {
+    method: "PUT",
+    body: JSON.stringify({ amount }),
+    headers: { "X-Admin-Password": adminPassword },
+  });
 }
 
 export function createPaymentOrder() {

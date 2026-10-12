@@ -1,10 +1,12 @@
-import axios from "axios";
+import axios from 'axios';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, "") || "";
+const isServer = typeof window === 'undefined' || import.meta.env?.SSR;
 
 const apiClient = axios.create({
-  ...(API_BASE_URL ? { baseURL: API_BASE_URL } : {}),
+  baseURL: isServer ? 'http://localhost:8081/api' : '',
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 export default apiClient;

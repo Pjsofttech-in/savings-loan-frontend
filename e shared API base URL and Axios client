@@ -1,0 +1,13 @@
+ .env.example                                     |   1 [32m+[m
+ .gitignore                                       |   1 [32m+[m
+ package-lock.json                                | 365 [32m+++++++++++++++++++[m[31m----[m
+ package.json                                     |   1 [32m+[m
+ src/Components/AddMember.jsx                     |  19 [32m+[m[31m-[m
+ src/Components/Dashboard.jsx                     |  13 [32m+[m[31m-[m
+ src/Pages/registration/RegistrationDashboard.jsx |   9 [32m+[m[31m-[m
+ src/hooks/useMemberForm.js                       |  26 [32m+[m[31m-[m
+ src/services/apiClient.js                        |  10 [32m+[m
+ src/services/memberService.js                    |  50 [32m++[m[31m--[m
+ src/services/shareService.js                     |  55 [32m++[m[31m--[m
+ vite.config.js                                   |   5 [32m+[m
+ 12 files changed, 414 insertions(+), 141 deletions(-)
