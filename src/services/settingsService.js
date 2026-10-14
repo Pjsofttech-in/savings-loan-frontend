@@ -5,7 +5,8 @@ const DEFAULT_SETTINGS = {
   fee: 500,
   monthlyFee: 1000,
   memberTypes: ["General", "Lifetime", "Honorary"],
-  years: ["2026", "2027", "2028"]
+  years: ["2026", "2027", "2028"],
+  shareTypes: ["Equity", "Preference"]
 };
 
 export const getRegistrationSettings = () => {
@@ -19,7 +20,8 @@ export const getRegistrationSettings = () => {
         amount: parsed.amount || parsed.fee || DEFAULT_SETTINGS.amount,
         monthlyFee: parsed.monthlyFee || DEFAULT_SETTINGS.monthlyFee,
         memberTypes: parsed.memberTypes?.length ? parsed.memberTypes : DEFAULT_SETTINGS.memberTypes,
-        years: parsed.years?.length ? parsed.years : DEFAULT_SETTINGS.years
+        years: parsed.years?.length ? parsed.years : DEFAULT_SETTINGS.years,
+        shareTypes: parsed.shareTypes?.length ? parsed.shareTypes : DEFAULT_SETTINGS.shareTypes
       };
     }
   } catch (error) {
