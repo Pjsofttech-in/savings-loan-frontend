@@ -9,6 +9,17 @@ import { createShareAllocation } from "../../services/shareService";
 
 export default function SharesApplicationForm() {
   const [registrationSettings] = useState(getRegistrationSettings);
+  
+  // Bank account settings from settings service
+  const bankAccountSettings = registrationSettings.bankAccount || {
+    bankName: "Primary Bank (Not Configured)",
+    accountNumber: "-",
+    ifscCode: "-",
+    branchName: "-",
+    accountHolderName: "-",
+    accountType: "Current Account"
+  };
+
   const [form, setForm] = useState({
     folioNumber: "",
     applicationDate: new Date().toISOString().split('T')[0],
@@ -19,6 +30,7 @@ export default function SharesApplicationForm() {
     dueDate: "",
     paymentMode: "Bank Transfer",
     referenceNumber: "",
+    sourceBank: "", // Added: Payer's bank tracking
   });
 
   const [errors, setErrors] = useState({});
@@ -88,6 +100,9 @@ export default function SharesApplicationForm() {
     if (!form.faceValue || Number(form.faceValue) <= 0) {
       newErrors.faceValue = "Valid face value is required.";
     }
+    if (!form.sourceBank) {
+      newErrors.sourceBank = "Payer's bank is required.";
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -107,6 +122,8 @@ export default function SharesApplicationForm() {
         dueDate: form.dueDate || null,
         paymentMode: form.paymentMode,
         referenceNumber: form.referenceNumber,
+        sourceBank: form.sourceBank,
+        destinationBank: `${bankAccountSettings.bankName} (${bankAccountSettings.accountNumber})`,
       });
       setAllocationId(savedAllocation.id);
       setIsSubmitted(true);
@@ -123,7 +140,7 @@ export default function SharesApplicationForm() {
       {isSubmitted && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm font-bold flex items-center justify-between">
           <span>✓ Share allocation #{allocationId} saved successfully.</span>
-          <button onClick={() => setIsSubmitted(false)} className="text-xs underline text-emerald-700">Submit Another</button>
+          <button onClick={() => setIsSubmitted(false)} className="text-xs underline text-emerald-700 cursor-pointer">Submit Another</button>
         </div>
       )}
 
@@ -276,7 +293,45 @@ export default function SharesApplicationForm() {
             <p className="text-slate-500 text-[13px]">Configure payment status, due date parameters, and settlement modes.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          {/* Bank Routing & Fund Flow Card */}
+          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+              <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Bank Tracking</span>
+              <span className="text-[10px] font-bold text-slate-500">Linked to Settings</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Receiving Bank (Destination) */}
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Receiving Bank (Inflow To)</span>
+                <strong className="text-xs text-[#102a43] block">{bankAccountSettings.bankName} ({bankAccountSettings.accountType})</strong>
+                <span className="text-[11px] font-mono text-teal-700 block mt-0.5">A/c: {bankAccountSettings.accountNumber} | IFSC: {bankAccountSettings.ifscCode}</span>
+              </div>
+
+              {/* Source Bank */}
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-center">
+                <label htmlFor="source-bank-input" className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Payer's Bank (Source From) *</label>
+                <input
+                  id="source-bank-input"
+                  type="text"
+                  value={form.sourceBank}
+                  onChange={(e) => updateField("sourceBank", e.target.value)}
+                  placeholder="e.g. HDFC / SBI / GPay"
+                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                  required
+                />
+                {errors.sourceBank && <p className="text-red-600 text-[10px] mt-1">{errors.sourceBank}</p>}
+              </div>
+
+              {/* Status */}
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-teal-800 uppercase">Routing Verified</span>
+                <span className="text-xs font-bold text-teal-900 mt-0.5">Ready for Share Allocation</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             <SelectField
               id="payment-status"
               label="Payment Status"

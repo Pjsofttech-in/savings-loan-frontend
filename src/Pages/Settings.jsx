@@ -11,6 +11,7 @@ const catalogs = [
   { key: "years", title: "Membership Years", singular: "Membership Year", icon: "M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" },
   { key: "shareTypes", title: "Share Types", singular: "Share Type", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 5 9 5 9-5" },
   { key: "fees", title: "Fee Settings", singular: "Fee Setting", icon: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" },
+  { key: "bankAccount", title: "Bank Account", singular: "Bank Account", icon: "M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11" },
   { key: "members", title: "Members", singular: "Member", icon: "M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3a4 4 0 0 1 0 7m2 2a4 4 0 0 1 2 4" },
 ];
 
@@ -31,10 +32,23 @@ export default function Settings() {
     monthlyFee: settings.monthlyFee || 1000,
   });
 
+  // Bank Account settings local state for editing
+  const [bankForm, setBankForm] = useState(settings.bankAccount || {
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    branchName: "",
+    accountHolderName: "",
+    accountType: "Current Account",
+  });
+
   const activeCatalog = catalogs.find(({ key }) => key === activeKey);
   const isMemberList = activeKey === "members";
   const isFeeSettings = activeKey === "fees";
-  const options = isMemberList ? members : !isFeeSettings ? settings[activeKey] : [];
+  const isBankAccount = activeKey === "bankAccount";
+  
+  // Safe options fallback for arrays
+  const options = isMemberList ? members : (!isFeeSettings && !isBankAccount && Array.isArray(settings[activeKey])) ? settings[activeKey] : [];
   
   const filteredOptions = isMemberList
     ? members.filter((member) =>
@@ -44,7 +58,7 @@ export default function Settings() {
           .toLocaleLowerCase()
           .includes(search.trim().toLocaleLowerCase()),
       )
-    : !isFeeSettings
+    : (!isFeeSettings && !isBankAccount && Array.isArray(options))
     ? options.filter((option) =>
         option.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
       )
@@ -79,6 +93,20 @@ export default function Settings() {
       setMessage("Fee settings updated successfully. Live on registration form.");
     } catch {
       setMessage("Could not save fee settings.");
+    }
+  };
+
+  const handleBankSubmit = (e) => {
+    e.preventDefault();
+    try {
+      const nextSettings = saveRegistrationSettings({
+        ...settings,
+        bankAccount: bankForm,
+      });
+      setSettings(nextSettings);
+      setMessage("Bank account configuration updated successfully.");
+    } catch {
+      setMessage("Could not save bank account details.");
     }
   };
 
@@ -148,7 +176,7 @@ export default function Settings() {
           {/* FEE SETTINGS FORM VIEW */}
           {isFeeSettings ? (
             <div className="max-w-2xl">
-              <h3 className="text-base font-bold text-slate-800 mb-2">Configure Registration & Monthly Fees</h3>
+              <h3 className="text-base font-bold text-slate-800 mb-2">Configure Registration &amp; Monthly Fees</h3>
               <p className="text-xs text-slate-500 mb-6">These amounts will automatically reflect on the member registration form in real-time.</p>
 
               {message && <p className="mb-4 text-xs font-semibold text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200" role="status">{message}</p>}
@@ -190,6 +218,95 @@ export default function Settings() {
                 </div>
               </form>
             </div>
+          ) : isBankAccount ? (
+            /* BANK ACCOUNT SETTINGS FORM VIEW */
+            <div className="max-w-3xl">
+              <h3 className="text-base font-bold text-slate-800 mb-2">Organization Bank Account Details</h3>
+              <p className="text-xs text-slate-500 mb-6">Configure primary bank account information for fund inflow tracking and routing transparency.</p>
+
+              {message && <p className="mb-4 text-xs font-semibold text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200" role="status">{message}</p>}
+
+              <form onSubmit={handleBankSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Bank Name *</label>
+                  <input
+                    type="text"
+                    value={bankForm.bankName}
+                    onChange={(e) => setBankForm((prev) => ({ ...prev, bankName: e.target.value }))}
+                    placeholder="e.g. State Bank of India"
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Account Number *</label>
+                  <input
+                    type="text"
+                    value={bankForm.accountNumber}
+                    onChange={(e) => setBankForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
+                    placeholder="e.g. 12345678901"
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">IFSC Code *</label>
+                  <input
+                    type="text"
+                    value={bankForm.ifscCode}
+                    onChange={(e) => setBankForm((prev) => ({ ...prev, ifscCode: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. SBIN0001234"
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Branch Name</label>
+                  <input
+                    type="text"
+                    value={bankForm.branchName}
+                    onChange={(e) => setBankForm((prev) => ({ ...prev, branchName: e.target.value }))}
+                    placeholder="e.g. Main Branch Pune"
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Account Holder Name</label>
+                  <input
+                    type="text"
+                    value={bankForm.accountHolderName}
+                    onChange={(e) => setBankForm((prev) => ({ ...prev, accountHolderName: e.target.value }))}
+                    placeholder="e.g. PJ SoftTech Group"
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Account Type</label>
+                  <select
+                    value={bankForm.accountType}
+                    onChange={(e) => setBankForm((prev) => ({ ...prev, accountType: e.target.value }))}
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                  >
+                    <option value="Current Account">Current Account</option>
+                    <option value="Savings Account">Savings Account</option>
+                  </select>
+                </div>
+
+                <div className="col-span-full pt-2">
+                  <button
+                    type="submit"
+                    className="h-11 px-6 rounded-lg bg-[#1677d2] hover:bg-[#1269bd] text-white text-sm font-bold shadow-sm transition cursor-pointer"
+                  >
+                    Save Bank Account Details
+                  </button>
+                </div>
+              </form>
+            </div>
           ) : (
             <>
               {/* CATALOGS / MEMBERS LIST VIEW */}
@@ -224,7 +341,7 @@ export default function Settings() {
                   <input
                     autoFocus
                     aria-label={`New ${activeCatalog.singular}`}
-                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none transition focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
                     value={newOption}
                     onChange={(event) => setNewOption(event.target.value)}
                     placeholder={`Enter ${activeCatalog.singular.toLocaleLowerCase()}`}

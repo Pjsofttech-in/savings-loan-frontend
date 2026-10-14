@@ -54,6 +54,7 @@ export default function RegistrationForm() {
       paymentStatus: PAYMENT_STATUS_OPTIONS[0],
       paymentMode: PAYMENT_MODES[0],
       transactionId: "",
+      sourceBank: "", // Added: Payer's bank tracking
       nomineeName: "", nomineeRelationship: NOMINEE_RELATIONS[0], nomineeMobile: "",
     },
     address: { street: "", country: "India", state: "", district: "", taluka: "", city: "", pincode: "" },
@@ -65,6 +66,16 @@ export default function RegistrationForm() {
       witnessIdProofType: ID_DOCUMENT_OPTIONS[0],
     }
   });
+
+  // Bank account settings from settings service
+  const bankAccountSettings = registrationSettings.bankAccount || {
+    bankName: "Primary Bank (Not Configured)",
+    accountNumber: "-",
+    ifscCode: "-",
+    branchName: "-",
+    accountHolderName: "-",
+    accountType: "Current Account"
+  };
 
   const [documentType, setDocumentType] = useState("Aadhaar Card");
   const [documentFile, setDocumentFile] = useState(null);
@@ -131,6 +142,10 @@ export default function RegistrationForm() {
       formData.append("monthlyFee", monthlyContribution);
       formData.append("documentType", documentType);
       formData.append("joiningDate", new Date().toISOString().slice(0, 10));
+      // Append bank routing info
+      formData.append("destinationBank", `${bankAccountSettings.bankName} (${bankAccountSettings.accountNumber})`);
+      formData.append("sourceBank", form.personal.sourceBank);
+
       if (documentFile) formData.append("document", documentFile);
       if (witnessDocFile) formData.append("witnessDocument", witnessDocFile);
 
@@ -220,7 +235,44 @@ export default function RegistrationForm() {
             </div>
           </div>
 
-          {/* Payment Status, Mode, Transaction UTR & Registration Fee placed after witness section */}
+          {/* Bank Routing & Fund Flow Card */}
+          <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+              <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Bank Tracking</span>
+              <span className="text-[10px] font-bold text-slate-500">Linked to Settings</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Receiving Bank (Destination) */}
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Receiving Bank (Inflow To)</span>
+                <strong className="text-xs text-[#102a43] block">{bankAccountSettings.bankName} ({bankAccountSettings.accountType})</strong>
+                <span className="text-[11px] font-mono text-teal-700 block mt-0.5">A/c: {bankAccountSettings.accountNumber} | IFSC: {bankAccountSettings.ifscCode}</span>
+              </div>
+
+              {/* Source Bank */}
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-center">
+                <label htmlFor="source-bank-input" className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Payer's Bank (Source From) *</label>
+                <input
+                  id="source-bank-input"
+                  type="text"
+                  value={form.personal.sourceBank}
+                  onChange={(e) => updateField("personal", "sourceBank", e.target.value)}
+                  placeholder="e.g. HDFC / SBI / GPay"
+                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                  required
+                />
+              </div>
+
+              {/* Status */}
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-teal-800 uppercase">Routing Verified</span>
+                <span className="text-xs font-bold text-teal-900 mt-0.5">Ready for Credit Tracking</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Status, Mode, Transaction UTR & Registration Fee */}
           <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
             <SelectField id="payment-status" label="Payment Status *" value={form.personal.paymentStatus} onChange={(val) => updateField("personal", "paymentStatus", val)} options={PAYMENT_STATUS_OPTIONS} required />
             <SelectField id="mode-of-payment" label="Payment Mode *" value={form.personal.paymentMode} onChange={(val) => updateField("personal", "paymentMode", val)} options={PAYMENT_MODES} required />
