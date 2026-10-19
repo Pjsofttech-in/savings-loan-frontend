@@ -1,72 +1,85 @@
 // src/Pages/registration/List.jsx
-import { useState } from "react";
-import NotificationModal from "../../Components/NotificationModel";
-import { fetchMembers } from "../../services/memberService";
-import { fetchShareAllocations } from "../../services/shareService";
-import { formatIndianCurrency } from "../../utils/formHelpers";
+import { useState, useEffect } from "react";
+import NotificationModal from "../Components/NotificationModel";
+import { fetchMembers } from "../services/memberService";
+import { fetchShareAllocations } from "../services/shareService";
+import { formatIndianCurrency } from "../utils/formHelpers";
 
 export default function List() {
-  const [members, setMembers] = useState([]);
   const [records, setRecords] = useState([]);
+  // Starts as true, so the effect never needs to set it before fetching
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [recordsError, setRecordsError] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
 
-  // Streamlined search and status filter
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("All");
 
-  const loadData = () => {
-    setLoadingRecords(true);
-    Promise.all([fetchMembers(), fetchShareAllocations()])
-      .then(([memberRecords, shareRecords]) => {
-        setMembers(memberRecords);
-        const membersById = new Map(memberRecords.map((member) => [member.id, member]));
-        setRecords(shareRecords.map((share) => {
-          const member = membersById.get(share.memberId);
-          const amount = Number(share.paymentAmount) || 0;
-          const paid = share.paymentStatus === "Complete" ? amount : 0;
-          const pending = share.paymentStatus === "Pending" ? amount : 0;
-          return {
-            id: share.id,
-            user: share.memberName || member?.fullName || "Member",
-            memberId: share.memberId || member?.id || "-",
-            memberFee: member?.registrationFee || member?.memberFee || 500,
-            type: "Income",
-            category: "Share Capital",
-            date: share.applicationDate || "-",
-            dueDate: share.dueDate || "-",
-            paymentMethod: share.paymentMethod || "Cash",
-            transactionId: share.referenceNumber || "",
-            paymentStatus: share.paymentStatus || "Pending",
-            totalLoanAmount: formatIndianCurrency(amount),
-            amountPaid: formatIndianCurrency(paid),
-            pendingAmount: formatIndianCurrency(pending),
-            amount: formatIndianCurrency(amount),
-          };
-        }));
-      })
-      .catch((error) => setRecordsError(error.message))
-      .finally(() => setLoadingRecords(false));
-  };
+  useEffect(() => {
+    let cancelled = false;
 
-  useState(() => {
+    // All setState calls happen inside promise callbacks (asynchronously),
+    // so nothing is set synchronously in the effect body.
+    const loadData = () => {
+      Promise.all([
+        fetchMembers().catch(() => []),
+        fetchShareAllocations().catch(() => []),
+      ])
+        .then(([memberRecords, shareRecords]) => {
+          if (cancelled) return;
+
+          const sharesByMemberId = new Map();
+          shareRecords.forEach((share) => {
+            sharesByMemberId.set(String(share.memberId), share);
+          });
+
+          const combinedRecords = memberRecords.map((member) => {
+            const share = sharesByMemberId.get(String(member.id)) || {};
+            const amount =
+              Number(share.paymentAmount) || Number(member.registrationFee) || 500;
+            const status = share.paymentStatus || "Complete";
+
+            return {
+              id: member.id,
+              user: member.fullName || "Member",
+              memberId: member.id || "-",
+              memberFee: member.registrationFee || 500,
+              category: share.shareType || "Standard Member",
+              date: member.applicationDate || share.applicationDate || "-",
+              paymentMethod: share.paymentMethod || "Cash",
+              paymentStatus: status,
+              amount: formatIndianCurrency(amount),
+            };
+          });
+
+          setRecords(combinedRecords);
+          setRecordsError("");
+        })
+        .catch((error) => {
+          if (!cancelled) setRecordsError(error.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingRecords(false);
+        });
+    };
+
     loadData();
-    // Listen for live registration updates
     window.addEventListener("dataUpdated", loadData);
-    return () => window.removeEventListener("dataUpdated", loadData);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("dataUpdated", loadData);
+    };
   }, []);
 
-  const memberIdsByName = new Map(
-    members.map((member) => [member.fullName?.trim().toLocaleLowerCase(), member.id]),
-  );
-  const getMemberId = (name) => memberIdsByName.get(name.trim().toLocaleLowerCase()) || "-";
-
-  // Filter logic
   const filteredRecords = records.filter((item) => {
     if (filterPaymentStatus !== "All" && item.paymentStatus !== filterPaymentStatus) return false;
-    if (searchQuery.trim() && !item.user.toLowerCase().includes(searchQuery.toLowerCase()) && !String(item.memberId).toLowerCase().includes(searchQuery.toLowerCase())) {
+    if (
+      searchQuery.trim() &&
+      !item.user.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !String(item.memberId).toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
       return false;
     }
     return true;
@@ -84,10 +97,9 @@ export default function List() {
       <div className="mb-4 pb-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-[#102a43] text-base font-bold m-0">Member &amp; Transaction List</h2>
-          <p className="text-slate-500 text-[11px] mt-0.5">Review member share transactions and fee details. Click a row for ledger details.</p>
+          <p className="text-slate-500 text-[11px] mt-0.5">Review all registered members and fee details. Click a row for ledger details.</p>
         </div>
 
-        {/* Clean Search Input & Status Filter */}
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -108,7 +120,6 @@ export default function List() {
         </div>
       </div>
 
-      {/* Summary Pills */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="bg-[#22c55e] text-white px-3 py-1 rounded-full text-[11px] font-bold shadow-xs flex items-center gap-1.5">
           <span>Paid:</span>
@@ -120,7 +131,6 @@ export default function List() {
         </div>
       </div>
 
-      {/* Main Data Table */}
       <div className="overflow-x-auto border border-slate-200 rounded-lg">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -138,12 +148,12 @@ export default function List() {
           <tbody className="divide-y divide-slate-100 text-center">
             {filteredRecords.length > 0 ? (
               filteredRecords.map((record, index) => (
-                <tr 
-                  key={record.id} 
+                <tr
+                  key={record.id}
                   onClick={() => setSelectedMember(record)}
                   className={`hover:bg-teal-50/50 cursor-pointer transition ${index % 2 === 0 ? "bg-slate-50/40" : "bg-white"}`}
                 >
-                  <td className="p-2 font-mono font-semibold text-slate-700">{getMemberId(record.user)}</td>
+                  <td className="p-2 font-mono font-semibold text-slate-700">MEM-{record.memberId}</td>
                   <td className="p-2 font-bold text-slate-900">{record.user}</td>
                   <td className="p-2 font-bold text-teal-700">₹{record.memberFee}</td>
                   <td className="p-2 text-slate-600">{record.category}</td>
@@ -166,7 +176,7 @@ export default function List() {
             ) : (
               <tr>
                 <td colSpan="8" className="p-6 text-center text-slate-400">
-                  {loadingRecords ? "Loading transactions..." : recordsError || "No members match these filters."}
+                  {loadingRecords ? "Loading members..." : recordsError || "No members match these filters."}
                 </td>
               </tr>
             )}
@@ -174,7 +184,6 @@ export default function List() {
         </table>
       </div>
 
-      {/* Member Financial Ledger Modal */}
       {selectedMember && (
         <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl border border-slate-200">
@@ -183,7 +192,7 @@ export default function List() {
                 <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider">Member Financial Ledger</span>
                 <h3 className="text-base font-bold text-[#102a43] mt-0.5">{selectedMember.user}</h3>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedMember(null)}
                 className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold grid place-items-center transition cursor-pointer text-xs"
               >
@@ -194,7 +203,7 @@ export default function List() {
             <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs mb-4">
               <div className="flex justify-between py-1 border-b border-slate-200/60">
                 <span className="text-slate-500">Member ID:</span>
-                <span className="font-mono font-bold text-slate-800">{getMemberId(selectedMember.user)}</span>
+                <span className="font-mono font-bold text-slate-800">MEM-{selectedMember.memberId}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-200/60">
                 <span className="text-slate-500">Member Fee:</span>
