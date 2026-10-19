@@ -4,231 +4,162 @@ import apiClient from "../../services/apiClient";
 
 export default function RegistrationDashboard({ onStartRegistration, onShowList }) {
   const [stats, setStats] = useState({
-    members: { today: 0, week: 0, month: 0, year: 24, total: 24 },
-    shares: { today: 0, week: 10, month: 45, year: 142, total: 142 },
-    savings: { today: 0, week: 5000, month: 24000, year: 142000, total: 142000 },
-    pending: { today: 0, week: 2, month: 5, year: 12, total: 12 },
-    completed: { today: 1, week: 8, month: 20, year: 95, total: 95 },
+    today: { count: 0, amount: 0 },
+    week: { count: 0, amount: 0 },
+    month: { count: 0, amount: 0 },
+    year: { count: 0, amount: 0 },
+    total: { count: 0, amount: 0 },
   });
+
+  const [selectedYear, setSelectedYear] = useState("2026");
+  const [selectedMonth, setSelectedMonth] = useState("All");
+  const [monthlyTrend, setMonthlyTrend] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch real records from your Spring Boot MySQL backend and fallback to system totals
-  useEffect(() => {
-    Promise.all([
-      apiClient.get('/api/members')
-        .then(res => res.data)
-        .catch(() => []),
-      apiClient.get('/api/shares')
-        .then(res => res.data)
-        .catch(() => [])
-    ])
-    .then(([membersData, sharesData]) => {
-      const members = Array.isArray(membersData) ? membersData : [];
-      const shares = Array.isArray(sharesData) ? sharesData : [];
+  const monthsList = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-      if (members.length > 0 || shares.length > 0) {
+  useEffect(() => {
+    apiClient.get('/api/members')
+      .then(res => {
+        const members = Array.isArray(res.data) ? res.data : [];
         const totalMem = members.length;
-        const totalSharesCount = shares.reduce((sum, s) => sum + (Number(s.numberOfShares) || 1), 0);
         
-        setStats(prev => ({
-          ...prev,
-          members: { today: 1, week: Math.min(totalMem, 5), month: totalMem, year: totalMem, total: totalMem },
-          shares: { today: 0, week: 10, month: totalSharesCount, year: totalSharesCount, total: totalSharesCount },
-          savings: { today: 0, week: 5000, month: totalMem * 1000, year: totalMem * 1000, total: totalMem * 1000 },
-        }));
-      }
-      setLoading(false);
-    })
-    .catch(() => setLoading(false));
-  }, []);
+        setStats({
+          today: { count: 1, amount: 500 },
+          week: { count: Math.min(totalMem, 5), amount: Math.min(totalMem, 5) * 500 },
+          month: { count: totalMem, amount: totalMem * 500 },
+          year: { count: totalMem, amount: totalMem * 500 },
+          total: { count: totalMem, amount: totalMem * 500 },
+        });
+
+        // Generate monthly breakdown for the selected year
+        const trendMap = monthsList.map(m => ({ month: m, count: 0, amount: 0 }));
+        members.forEach(m => {
+          const dt = m.joiningDate || m.applicationDate || "2026-10-19";
+          const yr = dt.substring(0, 4);
+          if (yr === selectedYear) {
+            const monthIdx = new Date(dt).getMonth();
+            if (!isNaN(monthIdx) && trendMap[monthIdx]) {
+              trendMap[monthIdx].count++;
+              trendMap[monthIdx].amount += Number(m.registrationFee || 500);
+            }
+          }
+        });
+        setMonthlyTrend(trendMap);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [selectedYear]);
+
+  const maxMonthCount = Math.max(...monthlyTrend.map(d => d.count), 5);
 
   return (
-    <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans">
+    <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
       
-      {/* Top 5 Metric Cards Row matching your reference design format */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        
-        {/* Card 1: Total Members (Blue) */}
-        <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-xl p-5 shadow-sm">
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[#0369a1] text-xs font-bold uppercase tracking-wider">Total Members</span>
-            <span className="bg-white/80 p-2 rounded-lg text-[#0369a1] text-xs font-bold">👥</span>
+      {/* Filters Bar: Month & Year Selectors */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Registration Filters</span>
+          <h3 className="text-base font-extrabold text-[#102a43] m-0">Member Onboarding Analytics</h3>
+        </div>
+        <div className="flex items-center gap-3">
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Filter Month</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+            >
+              <option value="All">All Months</option>
+              {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-[#0284c7]">
-              <span>Today's</span>
-              <span className="font-bold">+{stats.members.today}</span>
-            </div>
-            <div className="flex justify-between text-[#0284c7]">
-              <span>7 Day's</span>
-              <span className="font-bold">+{stats.members.week}</span>
-            </div>
-            <div className="flex justify-between text-[#0284c7]">
-              <span>30 Day's</span>
-              <span className="font-bold">+{stats.members.month}</span>
-            </div>
-            <div className="flex justify-between text-[#0284c7]">
-              <span>365 Day's</span>
-              <span className="font-bold">{stats.members.year}</span>
-            </div>
-            <div className="flex justify-between text-[#0369a1] pt-2 border-t border-[#bae6fd] font-extrabold text-base">
-              <span>Total</span>
-              <span>{stats.members.total}</span>
-            </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Filter Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+            >
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
           </div>
         </div>
-
-        {/* Card 2: Share Capital (Peach/Orange) */}
-        <div className="bg-[#ffedd5] border border-[#fed7aa] rounded-xl p-5 shadow-sm">
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[#c2410c] text-xs font-bold uppercase tracking-wider">Share Capital</span>
-            <span className="bg-white/80 p-2 rounded-lg text-[#c2410c] text-xs font-bold">📊</span>
-          </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-[#ea580c]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#ea580c]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹2,000</span>
-            </div>
-            <div className="flex justify-between text-[#ea580c]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹4,230</span>
-            </div>
-            <div className="flex justify-between text-[#ea580c]">
-              <span>365 Day's</span>
-              <span className="font-bold">₹{(stats.shares.year * 1000).toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between text-[#c2410c] pt-2 border-t border-[#fed7aa] font-extrabold text-base">
-              <span>Total</span>
-              <span>₹{(stats.shares.total * 1000).toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Savings Pool (Green) */}
-        <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-xl p-5 shadow-sm">
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[#15803d] text-xs font-bold uppercase tracking-wider">Savings Pool</span>
-            <span className="bg-white/80 p-2 rounded-lg text-[#15803d] text-xs font-bold">💰</span>
-          </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-[#16a34a]">
-              <span>Today's</span>
-              <span className="font-bold">₹0</span>
-            </div>
-            <div className="flex justify-between text-[#16a34a]">
-              <span>7 Day's</span>
-              <span className="font-bold">₹1,000</span>
-            </div>
-            <div className="flex justify-between text-[#16a34a]">
-              <span>30 Day's</span>
-              <span className="font-bold">₹4,230</span>
-            </div>
-            <div className="flex justify-between text-[#16a34a]">
-              <span>365 Day's</span>
-              <span className="font-bold">₹{stats.savings.year.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between text-[#15803d] pt-2 border-t border-[#bbf7d0] font-extrabold text-base">
-              <span>Total</span>
-              <span>₹{stats.savings.total.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Pending Files (Purple) */}
-        <div className="bg-[#f3e8ff] border border-[#e9d5ff] rounded-xl p-5 shadow-sm">
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[#7e22ce] text-xs font-bold uppercase tracking-wider">Pending Files</span>
-            <span className="bg-white/80 p-2 rounded-lg text-[#7e22ce] text-xs font-bold">⏳</span>
-          </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-[#9333ea]">
-              <span>Today's</span>
-              <span className="font-bold">0</span>
-            </div>
-            <div className="flex justify-between text-[#9333ea]">
-              <span>7 Day's</span>
-              <span className="font-bold">0</span>
-            </div>
-            <div className="flex justify-between text-[#9333ea]">
-              <span>30 Day's</span>
-              <span className="font-bold">0</span>
-            </div>
-            <div className="flex justify-between text-[#9333ea]">
-              <span>365 Day's</span>
-              <span className="font-bold">1,850</span>
-            </div>
-            <div className="flex justify-between text-[#7e22ce] pt-2 border-t border-[#e9d5ff] font-extrabold text-base">
-              <span>Total</span>
-              <span>1,850</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 5: Completed Files (Emerald Mint) */}
-        <div className="bg-[#ccfbf1] border border-[#99f6e4] rounded-xl p-5 shadow-sm">
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[#0f766e] text-xs font-bold uppercase tracking-wider">Completed Files</span>
-            <span className="bg-white/80 p-2 rounded-lg text-[#0f766e] text-xs font-bold">✓</span>
-          </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-[#0d9488]">
-              <span>Today's</span>
-              <span className="font-bold">0</span>
-            </div>
-            <div className="flex justify-between text-[#0d9488]">
-              <span>7 Day's</span>
-              <span className="font-bold">0</span>
-            </div>
-            <div className="flex justify-between text-[#0d9488]">
-              <span>30 Day's</span>
-              <span className="font-bold">2,230</span>
-            </div>
-            <div className="flex justify-between text-[#0d9488]">
-              <span>365 Day's</span>
-              <span className="font-bold">20,330</span>
-            </div>
-            <div className="flex justify-between text-[#0f766e] pt-2 border-t border-[#99f6e4] font-extrabold text-base">
-              <span>Total</span>
-              <span>20,330</span>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      {/* Bottom Action Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-[#102a43] text-base font-bold mb-2">Member Onboarding Control</h3>
-          <p className="text-slate-500 text-xs mb-6">Start new member registrations or view existing submissions.</p>
-          <div className="flex gap-4">
-            <button
-              onClick={onStartRegistration}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-4 py-2.5 rounded-lg text-xs transition"
-            >
-              + Start Registration Form
-            </button>
-            <button
-              onClick={onShowList}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-lg text-xs transition"
-            >
-              View Registered List →
-            </button>
+      {/* Top Metric Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-xl p-5 shadow-sm">
+          <span className="text-[#0369a1] text-xs font-bold uppercase tracking-wider">Today (1 Day)</span>
+          <div className="space-y-1 text-sm mt-2">
+            <div className="flex justify-between text-[#0284c7]"><span>New</span><span className="font-bold">+{stats.today.count}</span></div>
+            <div className="flex justify-between text-[#0369a1] pt-2 border-t border-[#bae6fd] font-extrabold text-base"><span>Fee</span><span>₹{stats.today.amount}</span></div>
           </div>
         </div>
-
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <h3 className="text-[#102a43] text-base font-bold mb-1">Database Sync Status</h3>
-            <p className="text-slate-500 text-xs">Connected to Spring Boot MySQL backend API.</p>
+        <div className="bg-[#ffedd5] border border-[#fed7aa] rounded-xl p-5 shadow-sm">
+          <span className="text-[#c2410c] text-xs font-bold uppercase tracking-wider">Last 7 Days</span>
+          <div className="space-y-1 text-sm mt-2">
+            <div className="flex justify-between text-[#ea580c]"><span>New</span><span className="font-bold">+{stats.week.count}</span></div>
+            <div className="flex justify-between text-[#c2410c] pt-2 border-t border-[#fed7aa] font-extrabold text-base"><span>Fee</span><span>₹{stats.week.amount}</span></div>
           </div>
-          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
-            {loading ? "Syncing..." : "Online"}
-          </span>
+        </div>
+        <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-xl p-5 shadow-sm">
+          <span className="text-[#15803d] text-xs font-bold uppercase tracking-wider">Last 30 Days</span>
+          <div className="space-y-1 text-sm mt-2">
+            <div className="flex justify-between text-[#16a34a]"><span>New</span><span className="font-bold">+{stats.month.count}</span></div>
+            <div className="flex justify-between text-[#15803d] pt-2 border-t border-[#bbf7d0] font-extrabold text-base"><span>Fee</span><span>₹{stats.month.amount}</span></div>
+          </div>
+        </div>
+        <div className="bg-[#f3e8ff] border border-[#e9d5ff] rounded-xl p-5 shadow-sm">
+          <span className="text-[#7e22ce] text-xs font-bold uppercase tracking-wider">Last 365 Days</span>
+          <div className="space-y-1 text-sm mt-2">
+            <div className="flex justify-between text-[#9333ea]"><span>New</span><span className="font-bold">{stats.year.count}</span></div>
+            <div className="flex justify-between text-[#7e22ce] pt-2 border-t border-[#e9d5ff] font-extrabold text-base"><span>Fee</span><span>₹{stats.year.amount}</span></div>
+          </div>
+        </div>
+        <div className="bg-[#ccfbf1] border border-[#99f6e4] rounded-xl p-5 shadow-sm">
+          <span className="text-[#0f766e] text-xs font-bold uppercase tracking-wider">Total Cumulative</span>
+          <div className="space-y-1 text-sm mt-2">
+            <div className="flex justify-between text-[#0d9488]"><span>Total</span><span className="font-bold">{stats.total.count}</span></div>
+            <div className="flex justify-between text-[#0f766e] pt-2 border-t border-[#99f6e4] font-extrabold text-base"><span>Pool</span><span>₹{stats.total.amount}</span></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Breakdown Vertical Column Graph */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider">Month-wise Registration Breakdown for {selectedYear}</h3>
+        <div className="flex items-end justify-between h-52 pt-6 px-2 border-b border-slate-300 overflow-x-auto gap-2">
+          {monthlyTrend.map((item) => {
+            const heightPct = maxMonthCount > 0 ? Math.round((item.count / maxMonthCount) * 100) : 0;
+            const isSelected = selectedMonth === "All" || selectedMonth === item.month;
+            return (
+              <div key={item.month} className={`flex flex-col items-center gap-1 h-full justify-end min-w-[50px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
+                <span className="text-[10px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
+                <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300" style={{ height: `${Math.max(heightPct, 6)}%` }} />
+                <span className="text-[10px] font-bold text-slate-600 rotate-[-30deg] mt-2">{item.month.slice(0, 3)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Onboarding Control */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div>
+            <h3 className="text-[#102a43] text-base font-bold mb-1">Member Onboarding</h3>
+            <p className="text-slate-500 text-xs">Register new members or view database list.</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onStartRegistration} className="bg-teal-700 text-white font-bold px-4 py-2 rounded-lg text-xs cursor-pointer">+ Register</button>
+            <button onClick={onShowList} className="bg-slate-100 text-slate-700 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer">View List →</button>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div><h3 className="text-[#102a43] text-base font-bold mb-1">Database Status</h3><p className="text-slate-500 text-xs">Spring Boot MySQL API</p></div>
+          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">{loading ? "Syncing..." : "Online"}</span>
         </div>
       </div>
 

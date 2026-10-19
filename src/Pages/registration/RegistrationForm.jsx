@@ -33,6 +33,17 @@ export default function RegistrationForm() {
     return s?.monthlyFee || 1000;
   });
 
+  // Dynamic bank accounts list from settings service
+  const [bankAccounts, setBankAccounts] = useState(() => {
+    const s = getRegistrationSettings();
+    if (s?.bankAccounts && s.bankAccounts.length > 0) return s.bankAccounts;
+    if (s?.bankAccount) return [s.bankAccount];
+    return [
+      { id: 1, bankName: "SBI", accountNumber: "123456789", accountType: "Current Account" },
+      { id: 2, bankName: "HDFC Bank", accountNumber: "987654321", accountType: "Savings Account" }
+    ];
+  });
+
   // Listen for real-time settings updates from the Settings page
   useEffect(() => {
     const handleSettingsUpdate = () => {
@@ -40,6 +51,11 @@ export default function RegistrationForm() {
       setRegistrationSettings(s);
       if (s?.amount || s?.fee) setAdminRegistrationFee(s.amount || s.fee);
       if (s?.monthlyFee) setMonthlyContribution(s.monthlyFee);
+      if (s?.bankAccounts && s.bankAccounts.length > 0) {
+        setBankAccounts(s.bankAccounts);
+      } else if (s?.bankAccount) {
+        setBankAccounts([s.bankAccount]);
+      }
     };
 
     window.addEventListener("settingsUpdated", handleSettingsUpdate);
@@ -49,12 +65,13 @@ export default function RegistrationForm() {
   const [form, setForm] = useState({
     personal: {
       fullName: "", fatherName: "", dob: "", gender: "", occupation: OCCUPATIONS[0],
-      memberType: registrationSettings.memberTypes[0] || "", membershipYear: registrationSettings.years[0] || "",
+      memberType: registrationSettings.memberTypes?.[0] || "", membershipYear: registrationSettings.years?.[0] || "",
       mobile: "", email: "", password: "", 
       paymentStatus: PAYMENT_STATUS_OPTIONS[0],
       paymentMode: PAYMENT_MODES[0],
       transactionId: "",
-      sourceBank: "", // Added: Payer's bank tracking
+      sourceBank: "", 
+      destinationBank: bankAccounts[0]?.bankName || "SBI", 
       nomineeName: "", nomineeRelationship: NOMINEE_RELATIONS[0], nomineeMobile: "",
     },
     address: { street: "", country: "India", state: "", district: "", taluka: "", city: "", pincode: "" },
@@ -66,16 +83,6 @@ export default function RegistrationForm() {
       witnessIdProofType: ID_DOCUMENT_OPTIONS[0],
     }
   });
-
-  // Bank account settings from settings service
-  const bankAccountSettings = registrationSettings.bankAccount || {
-    bankName: "Primary Bank (Not Configured)",
-    accountNumber: "-",
-    ifscCode: "-",
-    branchName: "-",
-    accountHolderName: "-",
-    accountType: "Current Account"
-  };
 
   const [documentType, setDocumentType] = useState("Aadhaar Card");
   const [documentFile, setDocumentFile] = useState(null);
@@ -118,11 +125,12 @@ export default function RegistrationForm() {
     if (!form.personal.mobile) newErrors.mobile = "Mobile required.";
     if (!form.address.pincode) newErrors.pincode = "Pincode required.";
     if (!form.personal.nomineeName) newErrors.nomineeName = "Nominee required.";
-    if (form.personal.password.length < 8) newErrors.password = "Min 8 chars required.";
+    if (!form.personal.password || form.personal.password.length < 8) newErrors.password = "Min 8 chars required.";
     if (!documentFile) newErrors.document = "Document required.";
     if (!form.witness.witnessName) newErrors.witnessName = "Witness required.";
     if (!form.witness.witnessMemberNo) newErrors.witnessMemberNo = "Witness ID required.";
     if (!witnessDocFile) newErrors.witnessDoc = "Witness doc required.";
+    if (!form.personal.destinationBank) newErrors.destinationBank = "Receiving bank required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -142,8 +150,7 @@ export default function RegistrationForm() {
       formData.append("monthlyFee", monthlyContribution);
       formData.append("documentType", documentType);
       formData.append("joiningDate", new Date().toISOString().slice(0, 10));
-      // Append bank routing info
-      formData.append("destinationBank", `${bankAccountSettings.bankName} (${bankAccountSettings.accountNumber})`);
+      formData.append("destinationBank", form.personal.destinationBank);
       formData.append("sourceBank", form.personal.sourceBank);
 
       if (documentFile) formData.append("document", documentFile);
@@ -169,7 +176,7 @@ export default function RegistrationForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        {/* Section 1: Personal Details & Monthly Contribution */}
+        {/* Section 1: Personal Details */}
         <FormSection id="personal-details" number="1" title="Member Personal Details" active={true}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <FormField id="full-name" label="Full Name *" value={form.personal.fullName} onChange={(val) => updateField("personal", "fullName", val)} error={errors.fullName} placeholder="Full name" required />
@@ -177,18 +184,15 @@ export default function RegistrationForm() {
             <FormField id="dob" label="DOB" type="date" value={form.personal.dob} onChange={(val) => updateField("personal", "dob", val)} />
             <SelectField id="gender" label="Gender" value={form.personal.gender} onChange={(val) => updateField("personal", "gender", val)} options={["Male", "Female", "Other"]} />
             <SelectField id="occupation" label="Occupation *" value={form.personal.occupation} onChange={(val) => updateField("personal", "occupation", val)} options={OCCUPATIONS} required />
-            <SelectField id="member-type" label="Member Type" value={form.personal.memberType} onChange={(val) => updateField("personal", "memberType", val)} options={registrationSettings.memberTypes} required />
-            <SelectField id="membership-year" label="Year" value={form.personal.membershipYear} onChange={(val) => updateField("personal", "membershipYear", val)} options={registrationSettings.years} required />
+            <SelectField id="member-type" label="Member Type" value={form.personal.memberType} onChange={(val) => updateField("personal", "memberType", val)} options={registrationSettings.memberTypes || ["Standard"]} required />
+            <SelectField id="membership-year" label="Year" value={form.personal.membershipYear} onChange={(val) => updateField("personal", "membershipYear", val)} options={registrationSettings.years || ["2026"]} required />
             <FormField id="mobile" label="Mobile *" value={form.personal.mobile} onChange={(val) => updateField("personal", "mobile", val)} error={errors.mobile} placeholder="10-digit mobile" required />
             <FormField id="email" label="Email" type="email" value={form.personal.email} onChange={(val) => updateField("personal", "email", val)} placeholder="Email" />
             <FormField id="nominee-name" label="Nominee Name *" value={form.personal.nomineeName} onChange={(val) => updateField("personal", "nomineeName", val)} error={errors.nomineeName} placeholder="Nominee name" required />
             <SelectField id="nominee-relationship" label="Relationship *" value={form.personal.nomineeRelationship} onChange={(val) => updateField("personal", "nomineeRelationship", val)} options={NOMINEE_RELATIONS} required />
             <FormField id="nominee-mobile" label="Nominee Mobile" value={form.personal.nomineeMobile} onChange={(val) => updateField("personal", "nomineeMobile", val)} placeholder="Nominee mobile" required />
-            
-            {/* Password */}
             <FormField id="member-password" label="Password *" type="password" value={form.personal.password} onChange={(val) => updateField("personal", "password", val)} error={errors.password} placeholder="Min 8 chars" required />
 
-            {/* Monthly Contribution right after password */}
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-emerald-700 uppercase">Monthly Contribution</span>
               <span className="text-sm font-extrabold text-emerald-900">₹{monthlyContribution}</span>
@@ -217,7 +221,7 @@ export default function RegistrationForm() {
           </div>
         </FormSection>
 
-        {/* Section 3: Witness Verification & Final Payment Details */}
+        {/* Section 3: Witness & Payment Routing (Re-ordered sequence as requested) */}
         <FormSection id="witness-details" number="3" title="Witness Verification & Payment Details" active={true}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <FormField id="witness-name" label="Witness Name *" value={form.witness.witnessName} onChange={(val) => updateField("witness", "witnessName", val)} error={errors.witnessName} placeholder="Name" required />
@@ -235,52 +239,91 @@ export default function RegistrationForm() {
             </div>
           </div>
 
-          {/* Bank Routing & Fund Flow Card */}
+          {/* PAYMENT & BANK ROUTING SECTION (Exact Requested Sequence: 1. Fee box, 2. Payment Status, 3. Payment Mode, 4. Receiver Bank) */}
           <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-              <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Bank Tracking</span>
+              <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Payment Details</span>
               <span className="text-[10px] font-bold text-slate-500">Linked to Settings</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Receiving Bank (Destination) */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Receiving Bank (Inflow To)</span>
-                <strong className="text-xs text-[#102a43] block">{bankAccountSettings.bankName} ({bankAccountSettings.accountType})</strong>
-                <span className="text-[11px] font-mono text-teal-700 block mt-0.5">A/c: {bankAccountSettings.accountNumber} | IFSC: {bankAccountSettings.ifscCode}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {/* 1. Registration Fee Box (First) */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-col justify-center">
+                <span className="text-[9px] font-bold text-blue-700 uppercase">1. Registration Fee</span>
+                <span className="text-sm font-extrabold text-blue-900">₹{adminRegistrationFee}</span>
               </div>
 
-              {/* Source Bank */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-center">
-                <label htmlFor="source-bank-input" className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Payer's Bank (Source From) *</label>
+              {/* 2. Payment Status */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">2. Payment Status *</label>
+                <select
+                  value={form.personal.paymentStatus}
+                  onChange={(e) => updateField("personal", "paymentStatus", e.target.value)}
+                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                  required
+                >
+                  {PAYMENT_STATUS_OPTIONS.map((status, idx) => (
+                    <option key={idx} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Payment Mode / Method */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">3. Payment Mode *</label>
+                <select
+                  value={form.personal.paymentMode}
+                  onChange={(e) => updateField("personal", "paymentMode", e.target.value)}
+                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                  required
+                >
+                  {PAYMENT_MODES.map((mode, idx) => (
+                    <option key={idx} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. Receiver Bank Account (Destination Bank) */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">4. Receiver Bank *</label>
+                <select
+                  value={form.personal.destinationBank}
+                  onChange={(e) => updateField("personal", "destinationBank", e.target.value)}
+                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                  required
+                >
+                  <option value="">-- Choose Bank --</option>
+                  {bankAccounts.map((acc, idx) => (
+                    <option key={acc.id || idx} value={acc.bankName || acc}>
+                      {acc.bankName ? `${acc.bankName} (${acc.accountType || "Account"} - ${acc.accountNumber})` : acc}
+                    </option>
+                  ))}
+                </select>
+                {errors.destinationBank && <p className="text-red-500 text-[10px] mt-0.5">{errors.destinationBank}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Payer's Bank (Source From)</label>
                 <input
-                  id="source-bank-input"
                   type="text"
                   value={form.personal.sourceBank}
                   onChange={(e) => updateField("personal", "sourceBank", e.target.value)}
-                  placeholder="e.g. HDFC / SBI / GPay"
+                  placeholder="e.g. HDFC / SBI / GPay / PhonePe"
                   className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
-                  required
                 />
               </div>
-
-              {/* Status */}
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-teal-800 uppercase">Routing Verified</span>
-                <span className="text-xs font-bold text-teal-900 mt-0.5">Ready for Credit Tracking</span>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Transaction ID / UTR</label>
+                <input
+                  type="text"
+                  value={form.personal.transactionId}
+                  onChange={(e) => updateField("personal", "transactionId", e.target.value)}
+                  placeholder="Enter Bank UTR / Transaction Reference"
+                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                />
               </div>
-            </div>
-          </div>
-
-          {/* Payment Status, Mode, Transaction UTR & Registration Fee */}
-          <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
-            <SelectField id="payment-status" label="Payment Status *" value={form.personal.paymentStatus} onChange={(val) => updateField("personal", "paymentStatus", val)} options={PAYMENT_STATUS_OPTIONS} required />
-            <SelectField id="mode-of-payment" label="Payment Mode *" value={form.personal.paymentMode} onChange={(val) => updateField("personal", "paymentMode", val)} options={PAYMENT_MODES} required />
-            <FormField id="transaction-id" label="Transaction ID / UTR" value={form.personal.transactionId} onChange={(val) => updateField("personal", "transactionId", val)} placeholder="Enter UTR" />
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex flex-col justify-center">
-              <span className="text-[9px] font-bold text-blue-700 uppercase">Registration Fee</span>
-              <span className="text-sm font-extrabold text-blue-900">₹{adminRegistrationFee}</span>
             </div>
           </div>
 

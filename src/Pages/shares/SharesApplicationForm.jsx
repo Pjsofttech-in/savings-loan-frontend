@@ -1,6 +1,6 @@
 // src/Pages/shares/SharesApplicationForm.jsx
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "../registration/RegistrationFields";
 import { formatIndianCurrency } from "../../utils/formHelpers";
 import { getRegistrationSettings } from "../../services/settingsService";
@@ -8,29 +8,47 @@ import { fetchMemberById } from "../../services/memberService";
 import { createShareAllocation } from "../../services/shareService";
 
 export default function SharesApplicationForm() {
-  const [registrationSettings] = useState(getRegistrationSettings);
+  const [registrationSettings, setRegistrationSettings] = useState(getRegistrationSettings);
   
-  // Bank account settings from settings service
-  const bankAccountSettings = registrationSettings.bankAccount || {
-    bankName: "Primary Bank (Not Configured)",
-    accountNumber: "-",
-    ifscCode: "-",
-    branchName: "-",
-    accountHolderName: "-",
-    accountType: "Current Account"
-  };
+  // Dynamic bank accounts list from settings service
+  const [bankAccounts, setBankAccounts] = useState(() => {
+    const s = getRegistrationSettings();
+    if (s?.bankAccounts && s.bankAccounts.length > 0) return s.bankAccounts;
+    if (s?.bankAccount) return [s.bankAccount];
+    return [
+      { id: 1, bankName: "SBI", accountNumber: "123456789", accountType: "Current Account", ifsc: "SBIN0003455" },
+      { id: 2, bankName: "HDFC Bank", accountNumber: "987654321", accountType: "Savings Account", ifsc: "HDFC0001234" }
+    ];
+  });
+
+  // Listen for real-time settings updates from the Settings page
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const s = getRegistrationSettings();
+      setRegistrationSettings(s);
+      if (s?.bankAccounts && s.bankAccounts.length > 0) {
+        setBankAccounts(s.bankAccounts);
+      } else if (s?.bankAccount) {
+        setBankAccounts([s.bankAccount]);
+      }
+    };
+
+    window.addEventListener("settingsUpdated", handleSettingsUpdate);
+    return () => window.removeEventListener("settingsUpdated", handleSettingsUpdate);
+  }, []);
 
   const [form, setForm] = useState({
     folioNumber: "",
     applicationDate: new Date().toISOString().split('T')[0],
-    shareType: registrationSettings.shareTypes[0] || "",
+    shareType: registrationSettings.shareTypes?.[0] || "Equity",
     numberOfShares: "",
     faceValue: "",
     paymentStatus: "Complete",
     dueDate: "",
     paymentMode: "Bank Transfer",
     referenceNumber: "",
-    sourceBank: "", // Added: Payer's bank tracking
+    sourceBank: "", 
+    destinationBank: bankAccounts[0]?.bankName || "SBI", // Receiver Bank
   });
 
   const [errors, setErrors] = useState({});
@@ -88,12 +106,10 @@ export default function SharesApplicationForm() {
     if (!form.applicationDate) newErrors.applicationDate = "Date is required.";
     if (!form.numberOfShares || Number(form.numberOfShares) <= 0) newErrors.numberOfShares = "Valid number of shares required.";
     
-    // Conditional validation for Due Date when Pending
     if (form.paymentStatus === "Pending" && !form.dueDate) {
       newErrors.dueDate = "Due date is required for pending payments.";
     }
 
-    // Conditional validation for Transaction ID (unless payment mode is Cash)
     if (form.paymentMode !== "Cash" && !form.referenceNumber) {
       newErrors.referenceNumber = "Transaction ID / Reference number is required for non-cash payments.";
     }
@@ -102,6 +118,9 @@ export default function SharesApplicationForm() {
     }
     if (!form.sourceBank) {
       newErrors.sourceBank = "Payer's bank is required.";
+    }
+    if (!form.destinationBank) {
+      newErrors.destinationBank = "Receiving bank is required.";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -123,7 +142,7 @@ export default function SharesApplicationForm() {
         paymentMode: form.paymentMode,
         referenceNumber: form.referenceNumber,
         sourceBank: form.sourceBank,
-        destinationBank: `${bankAccountSettings.bankName} (${bankAccountSettings.accountNumber})`,
+        destinationBank: form.destinationBank,
       });
       setAllocationId(savedAllocation.id);
       setIsSubmitted(true);
@@ -232,7 +251,7 @@ export default function SharesApplicationForm() {
               value={form.shareType}
               onChange={(val) => updateField("shareType", val)}
               error={errors.shareType}
-              options={registrationSettings.shareTypes}
+              options={registrationSettings.shareTypes || ["Equity"]}
               required
             />
 
@@ -287,32 +306,95 @@ export default function SharesApplicationForm() {
           </div>
         </FormSection>
 
-        {/* Section 2: Settlement Information */}
+        {/* Section 2: Settlement Information & Exact Sequence */}
         <FormSection id="settlement-details" number="2" title="Payment Status &amp; Settlement" active={true}>
           <div className="mb-5 pb-4 border-b border-slate-200">
             <p className="text-slate-500 text-[13px]">Configure payment status, due date parameters, and settlement modes.</p>
           </div>
 
-          {/* Bank Routing & Fund Flow Card */}
+          {/* PAYMENT & BANK ROUTING SECTION (Sequence: 1. Fee Box, 2. Payment Status, 3. Payment Mode, 4. Receiver Bank) */}
           <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-              <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Bank Tracking</span>
+              <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Payment Details</span>
               <span className="text-[10px] font-bold text-slate-500">Linked to Settings</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Receiving Bank (Destination) */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Receiving Bank (Inflow To)</span>
-                <strong className="text-xs text-[#102a43] block">{bankAccountSettings.bankName} ({bankAccountSettings.accountType})</strong>
-                <span className="text-[11px] font-mono text-teal-700 block mt-0.5">A/c: {bankAccountSettings.accountNumber} | IFSC: {bankAccountSettings.ifscCode}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {/* 1. Total Share Amount / Fee Box (First) */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-col justify-center">
+                <span className="text-[9px] font-bold text-blue-700 uppercase">1. Total Share Amount</span>
+                <span className="text-sm font-extrabold text-blue-900">{formatIndianCurrency(totalShareAmount)}</span>
               </div>
 
-              {/* Source Bank */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-center">
-                <label htmlFor="source-bank-input" className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Payer's Bank (Source From) *</label>
+              {/* 2. Payment Status */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">2. Payment Status *</label>
+                <select
+                  value={form.paymentStatus}
+                  onChange={(e) => updateField("paymentStatus", e.target.value)}
+                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                  required
+                >
+                  <option value="Complete">Complete</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Refunded">Refunded</option>
+                </select>
+              </div>
+
+              {/* 3. Payment Mode */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">3. Payment Mode *</label>
+                <select
+                  value={form.paymentMode}
+                  onChange={(e) => updateField("paymentMode", e.target.value)}
+                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                  required
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Cheque">Cheque</option>
+                </select>
+              </div>
+
+              {/* 4. Receiver Bank Account (Destination Bank) */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">4. Receiver Bank *</label>
+                <select
+                  value={form.destinationBank}
+                  onChange={(e) => updateField("destinationBank", e.target.value)}
+                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                  required
+                >
+                  <option value="">-- Choose Bank --</option>
+                  {bankAccounts.map((acc, idx) => (
+                    <option key={acc.id || idx} value={acc.bankName ? `${acc.bankName} (${acc.accountType || "Account"} - ${acc.accountNumber})` : acc}>
+                      {acc.bankName ? `${acc.bankName} (${acc.accountType || "Account"} - ${acc.accountNumber})` : acc}
+                    </option>
+                  ))}
+                </select>
+                {errors.destinationBank && <p className="text-red-600 text-[10px] mt-1">{errors.destinationBank}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+              {form.paymentStatus === "Pending" && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Due Date *</label>
+                  <input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(e) => updateField("dueDate", e.target.value)}
+                    className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                    required
+                  />
+                  {errors.dueDate && <p className="text-red-600 text-[10px] mt-1">{errors.dueDate}</p>}
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Payer's Bank (Source From) *</label>
                 <input
-                  id="source-bank-input"
                   type="text"
                   value={form.sourceBank}
                   onChange={(e) => updateField("sourceBank", e.target.value)}
@@ -323,60 +405,21 @@ export default function SharesApplicationForm() {
                 {errors.sourceBank && <p className="text-red-600 text-[10px] mt-1">{errors.sourceBank}</p>}
               </div>
 
-              {/* Status */}
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-teal-800 uppercase">Routing Verified</span>
-                <span className="text-xs font-bold text-teal-900 mt-0.5">Ready for Share Allocation</span>
-              </div>
+              {form.paymentMode !== "Cash" && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Transaction ID / UTR *</label>
+                  <input
+                    type="text"
+                    value={form.referenceNumber}
+                    onChange={(e) => updateField("referenceNumber", e.target.value)}
+                    placeholder="Enter Transaction ID"
+                    className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                    required
+                  />
+                  {errors.referenceNumber && <p className="text-red-600 text-[10px] mt-1">{errors.referenceNumber}</p>}
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-            <SelectField
-              id="payment-status"
-              label="Payment Status"
-              value={form.paymentStatus}
-              onChange={(val) => updateField("paymentStatus", val)}
-              error={errors.paymentStatus}
-              options={["Complete", "Pending", "Refunded"]}
-              required
-            />
-
-            {/* Conditionally rendered Due Date field if Pending is selected */}
-            {form.paymentStatus === "Pending" && (
-              <FormField
-                id="due-date"
-                label="Due Date"
-                type="date"
-                value={form.dueDate}
-                onChange={(val) => updateField("dueDate", val)}
-                error={errors.dueDate}
-                required
-              />
-            )}
-
-            <SelectField
-              id="payment-mode"
-              label="Mode of Payment"
-              value={form.paymentMode}
-              onChange={(val) => updateField("paymentMode", val)}
-              error={errors.paymentMode}
-              options={["Cash", "UPI", "Bank Transfer", "Cheque"]}
-              required
-            />
-
-            {/* Transaction ID required for everything except Cash */}
-            {form.paymentMode !== "Cash" && (
-              <FormField
-                id="reference-number"
-                label="Transaction ID / UTR"
-                value={form.referenceNumber}
-                onChange={(val) => updateField("referenceNumber", val)}
-                error={errors.referenceNumber}
-                required
-                placeholder="Enter Transaction ID"
-              />
-            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
@@ -386,7 +429,7 @@ export default function SharesApplicationForm() {
             <button
               type="submit"
               disabled={isSubmitting || isLookingUpMember}
-              className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-lg text-sm shadow-sm transition"
+              className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-lg text-sm shadow-sm transition cursor-pointer"
             >
               {isSubmitting ? "Saving..." : "Submit Shares Application"}
             </button>
