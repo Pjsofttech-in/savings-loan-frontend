@@ -169,7 +169,7 @@ export default function DashboardAnalytics() {
                 <span>₹60,000</span>
               </div>
               <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200">
-                <div className="bg-blue-600 h-full rounded-full" style={{ width: "60%" }}></div>
+                <div className="bg-teal-700 h-full rounded-full" style={{ width: "60%" }}></div>
               </div>
             </div>
 

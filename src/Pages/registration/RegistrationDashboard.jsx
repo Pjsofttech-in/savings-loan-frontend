@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import apiClient from "../../services/apiClient";
 
+const MONTHS_LIST = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export default function RegistrationDashboard({ onStartRegistration, onShowList }) {
   const [stats, setStats] = useState({
     today: { count: 0, amount: 0 },
@@ -15,8 +17,6 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
   const [selectedMonth, setSelectedMonth] = useState("All");
   const [monthlyTrend, setMonthlyTrend] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const monthsList = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   useEffect(() => {
     apiClient.get('/api/members')
@@ -32,8 +32,7 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
           total: { count: totalMem, amount: totalMem * 500 },
         });
 
-        // Generate monthly breakdown for the selected year
-        const trendMap = monthsList.map(m => ({ month: m, count: 0, amount: 0 }));
+        const trendMap = MONTHS_LIST.map(m => ({ month: m, count: 0, amount: 0 }));
         members.forEach(m => {
           const dt = m.joiningDate || m.applicationDate || "2026-10-19";
           const yr = dt.substring(0, 4);
@@ -56,38 +55,6 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
   return (
     <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
       
-      {/* Filters Bar: Month & Year Selectors */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Registration Filters</span>
-          <h3 className="text-base font-extrabold text-[#102a43] m-0">Member Onboarding Analytics</h3>
-        </div>
-        <div className="flex items-center gap-3">
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Filter Month</label>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-            >
-              <option value="All">All Months</option>
-              {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Filter Year</label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-            >
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Top Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-xl p-5 shadow-sm">
@@ -127,18 +94,46 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
         </div>
       </div>
 
-      {/* Monthly Breakdown Vertical Column Graph */}
+      {/* Monthly Breakdown Graph with Filters in Header */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider">Month-wise Registration Breakdown for {selectedYear}</h3>
-        <div className="flex items-end justify-between h-52 pt-6 px-2 border-b border-slate-300 overflow-x-auto gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200">
+          <div>
+            <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Registration Analytics</span>
+            <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider mt-0.5">Month-wise Registration Breakdown ({selectedYear})</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <div>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+              >
+                <option value="All">All Months</option>
+                {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+              >
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between h-64 pt-8 pb-6 px-4 overflow-x-auto gap-4">
           {monthlyTrend.map((item) => {
             const heightPct = maxMonthCount > 0 ? Math.round((item.count / maxMonthCount) * 100) : 0;
             const isSelected = selectedMonth === "All" || selectedMonth === item.month;
             return (
-              <div key={item.month} className={`flex flex-col items-center gap-1 h-full justify-end min-w-[50px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
-                <span className="text-[10px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
-                <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300" style={{ height: `${Math.max(heightPct, 6)}%` }} />
-                <span className="text-[10px] font-bold text-slate-600 rotate-[-30deg] mt-2">{item.month.slice(0, 3)}</span>
+              <div key={item.month} className={`flex flex-col items-center gap-2 h-full justify-end min-w-[55px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
+                <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
+                <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} />
+                <span className="text-[11px] font-bold text-slate-700 mt-1 whitespace-nowrap">{item.month.slice(0, 3)}</span>
               </div>
             );
           })}

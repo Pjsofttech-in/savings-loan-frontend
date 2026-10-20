@@ -6,17 +6,17 @@ import Navbar from "./Components/navbar";
 import Dashboard from "./Components/Dashboard";
 import RegistrationForm from "./Pages/registration/RegistrationForm";
 import RegistrationDashboard from "./Pages/registration/RegistrationDashboard";
+import List from "./Pages/registration/List"; // ← Import added
 import SharesApplicationForm from "./Pages/shares/SharesApplicationForm";
 import SharesDashboard from "./Pages/shares/SharesDashboard";
 import SharesList from "./Pages/registration/SharesList";
-import MemberList from "./Components/MemberList";
+
 import AddMember from "./Components/AddMember";
 
 // Monthly Savings Pages
 import MonthlySavingForm from "./Pages/Savings/MonthlySavingForm";
 import MonthlySavingDashboard from "./Pages/Savings/MonthlySavingDashboard";
 import MonthlySavingList from "./Pages/Savings/monthlySavinglist";
-
 
 import Settings from "./Pages/Settings";
 
@@ -25,6 +25,9 @@ function App() {
   const [regSlide, setRegSlide] = useState("dashboard");
   const [sharesSlide, setSharesSlide] = useState("dashboard"); // "dashboard" | "form" | "list"
   const [savingsSlide, setSavingsSlide] = useState("dashboard"); // "dashboard" | "form" | "list"
+  
+  // Member Edit State
+  const [editingMember, setEditingMember] = useState(null);
 
   return (
     <div className="app-shell min-h-screen bg-[#eef2ef]">
@@ -32,7 +35,10 @@ function App() {
         activeView={activeView} 
         onNavigate={(view) => {
           setActiveView(view);
-          if (view === "registration") setRegSlide("dashboard");
+          if (view === "registration") {
+            setRegSlide("dashboard");
+            setEditingMember(null);
+          }
           if (view === "shares") setSharesSlide("dashboard");
           if (view === "savings") setSavingsSlide("dashboard");
         }} 
@@ -43,7 +49,7 @@ function App() {
         {/* Main System Dashboard */}
         {activeView === "dashboard" && (
           <Dashboard
-            onStartRegistration={() => { setActiveView("registration"); setRegSlide("form"); }}
+            onStartRegistration={() => { setActiveView("registration"); setRegSlide("form"); setEditingMember(null); }}
             onStartSharesApplication={() => { setActiveView("shares"); setSharesSlide("form"); }}
             onShowUserList={() => { setActiveView("savings"); setSavingsSlide("list"); }}
           />
@@ -54,15 +60,28 @@ function App() {
           <div className="flex flex-col min-h-full">
             <div className="workflow-header bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between shadow-sm sticky top-[76px] z-20">
               <div className="workflow-tabs flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                <button onClick={() => setRegSlide("dashboard")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "dashboard" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Dashboard</button>
+                <button onClick={() => { setRegSlide("dashboard"); setEditingMember(null); }} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "dashboard" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Dashboard</button>
                 <button onClick={() => setRegSlide("form")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "form" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>2. Registration Form</button>
-                <button onClick={() => setRegSlide("list")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>3. Members</button>
+                <button onClick={() => { setRegSlide("list"); setEditingMember(null); }} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>3. Members</button>
               </div>
             </div>
             <div className="workflow-content max-w-[1400px] mx-auto w-full flex-1 p-6">
-              {regSlide === "dashboard" && <RegistrationDashboard onStartRegistration={() => setRegSlide("form")} onShowList={() => setRegSlide("list")} />}
-              {regSlide === "form" && <RegistrationForm />}
-              {regSlide === "list" && <MemberList />}
+              {regSlide === "dashboard" && <RegistrationDashboard onStartRegistration={() => { setRegSlide("form"); setEditingMember(null); }} onShowList={() => setRegSlide("list")} />}
+              {regSlide === "form" && (
+                <RegistrationForm 
+                  editingMember={editingMember} 
+                  onCancelEdit={() => { setEditingMember(null); setRegSlide("list"); }}
+                  onSuccess={() => { setEditingMember(null); setRegSlide("list"); }}
+                />
+              )}
+              {regSlide === "list" && (
+                <List 
+                  onEditMember={(member) => {
+                    setEditingMember(member);
+                    setRegSlide("form");
+                  }} 
+                />
+              )}
             </div>
           </div>
         )}

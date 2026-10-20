@@ -45,11 +45,32 @@ export default function Settings() {
   const [activeKey, setActiveKey] = useState(catalogs[0].key);
   const [menuExpanded, setMenuExpanded] = useState(false);
   const [search, setSearch] = useState("");
-  const [newOption, setNewOption] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [message, setMessage] = useState("");
   const [members, setMembers] = useState([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+
+  // Member Types with Fee structured state
+  const [memberTypesWithFee, setMemberTypesWithFee] = useState(() => {
+    if (settings.memberTypesWithFee && Array.isArray(settings.memberTypesWithFee)) {
+      return settings.memberTypesWithFee;
+    }
+    const defaults = settings.memberTypes || ["General", "Lifetime", "Honorary", "Founder"];
+    return defaults.map((name, idx) => ({
+      id: idx + 1,
+      name,
+      regFee: settings.amount || 500,
+      monthlyFee: settings.monthlyFee || 1000,
+      yearlyFee: (settings.monthlyFee || 1000) * 12,
+    }));
+  });
+
+  const [newTypeForm, setNewTypeForm] = useState({
+    name: "",
+    regFee: 500,
+    monthlyFee: 1000,
+    yearlyFee: 12000,
+  });
 
   // Fee settings local state
   const [feeForm, setFeeForm] = useState({
@@ -57,7 +78,7 @@ export default function Settings() {
     monthlyFee: settings.monthlyFee || 1000,
   });
 
-  // Bank Account list state (supports multiple bank accounts)
+  // Bank Account list state
   const [bankAccounts, setBankAccounts] = useState(() => {
     if (settings.bankAccounts && Array.isArray(settings.bankAccounts)) return settings.bankAccounts;
     if (settings.bankAccount) return [settings.bankAccount];
@@ -77,8 +98,15 @@ export default function Settings() {
   const isMemberList = activeKey === "members";
   const isFeeSettings = activeKey === "fees";
   const isBankAccount = activeKey === "bankAccount";
+  const isMemberTypes = activeKey === "memberTypes";
   
-  const options = isMemberList ? members : (!isFeeSettings && !isBankAccount && Array.isArray(settings[activeKey])) ? settings[activeKey] : [];
+  const options = isMemberList 
+    ? members 
+    : isMemberTypes
+    ? memberTypesWithFee
+    : (!isFeeSettings && !isBankAccount && Array.isArray(settings[activeKey])) 
+    ? settings[activeKey] 
+    : [];
   
   const filteredOptions = isMemberList
     ? members.filter((member) =>
@@ -87,6 +115,10 @@ export default function Settings() {
           .join(" ")
           .toLocaleLowerCase()
           .includes(search.trim().toLocaleLowerCase()),
+      )
+    : isMemberTypes
+    ? memberTypesWithFee.filter((t) =>
+        t.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
       )
     : (!isFeeSettings && !isBankAccount && Array.isArray(options))
     ? options.filter((option) =>
@@ -100,6 +132,60 @@ export default function Settings() {
       .catch((error) => setMessage(error.message))
       .finally(() => setIsLoadingMembers(false));
   }, []);
+
+  const saveMemberTypesSettings = (updatedList) => {
+    try {
+      const plainNames = updatedList.map(t => t.name);
+      const nextSettings = saveRegistrationSettings({
+        ...settings,
+        memberTypes: plainNames,
+        memberTypesWithFee: updatedList,
+      });
+      setSettings(nextSettings);
+      setMemberTypesWithFee(updatedList);
+      setMessage("Member types & fee structure saved successfully.");
+      window.dispatchEvent(new Event("settingsUpdated"));
+    } catch {
+      setMessage("Could not save member types settings.");
+    }
+  };
+
+  const handleMemberTypeFeeChange = (id, field, value) => {
+    const updated = memberTypesWithFee.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: Number(value) || 0 };
+      }
+      return item;
+    });
+    saveMemberTypesSettings(updated);
+  };
+
+  const handleCreateMemberType = (e) => {
+    e.preventDefault();
+    const name = newTypeForm.name.trim();
+    if (!name) return;
+    if (memberTypesWithFee.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+      setMessage("That member type already exists.");
+      return;
+    }
+    const newItem = {
+      id: Date.now(),
+      name,
+      regFee: Number(newTypeForm.regFee) || 500,
+      monthlyFee: Number(newTypeForm.monthlyFee) || 1000,
+      yearlyFee: Number(newTypeForm.yearlyFee) || 12000,
+    };
+    const updated = [...memberTypesWithFee, newItem];
+    saveMemberTypesSettings(updated);
+    setNewTypeForm({ name: "", regFee: 500, monthlyFee: 1000, yearlyFee: 12000 });
+    setIsAdding(false);
+    setSearch("");
+  };
+
+  const removeMemberType = (id) => {
+    const updated = memberTypesWithFee.filter(t => t.id !== id);
+    saveMemberTypesSettings(updated);
+  };
 
   const updateCatalog = (key, nextOptions) => {
     try {
@@ -121,6 +207,7 @@ export default function Settings() {
       });
       setSettings(nextSettings);
       setMessage("Fee settings updated successfully.");
+      window.dispatchEvent(new Event("settingsUpdated"));
     } catch {
       setMessage("Could not save fee settings.");
     }
@@ -133,7 +220,7 @@ export default function Settings() {
       const nextSettings = saveRegistrationSettings({
         ...settings,
         bankAccounts: updatedAccounts,
-        bankAccount: updatedAccounts[0] // fallback primary
+        bankAccount: updatedAccounts[0]
       });
       setSettings(nextSettings);
       setBankAccounts(updatedAccounts);
@@ -170,14 +257,14 @@ export default function Settings() {
 
   const addOption = (event) => {
     event.preventDefault();
-    const value = newOption.trim();
+    const value = newTypeForm.name.trim();
     if (!value) return;
     if (options.some((option) => option.toLocaleLowerCase() === value.toLocaleLowerCase())) {
       setMessage("That option already exists.");
       return;
     }
     updateCatalog(activeKey, [...options, value]);
-    setNewOption("");
+    setNewTypeForm({ ...newTypeForm, name: "" });
     setIsAdding(false);
     setSearch("");
   };
@@ -269,7 +356,6 @@ export default function Settings() {
               </form>
             </div>
           ) : isBankAccount ? (
-            /* UPDATED BANK ACCOUNT VIEW WITH TABLE FIRST & SIMPLE UNSTYLED FORM */
             <div className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -290,7 +376,6 @@ export default function Settings() {
 
               {message && <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200" role="status">{message}</p>}
 
-              {/* Simple Unstyled Form (Opens when Create New Bank Account is clicked) */}
               {isAdding && (
                 <form onSubmit={handleBankSubmit} className="p-5 bg-white border border-slate-300 rounded-xl space-y-4 shadow-sm">
                   <h4 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Add a New Bank Account</h4>
@@ -380,7 +465,6 @@ export default function Settings() {
                 </form>
               )}
 
-              {/* Bank Accounts Table (Same consistent design as other tables) */}
               <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <div className="min-w-[650px]">
                   <div className="grid grid-cols-[70px_minmax(160px,1fr)_150px_140px_130px_110px] items-center bg-[#6495ed] text-white text-xs font-bold text-center">
@@ -422,6 +506,155 @@ export default function Settings() {
                 </div>
               </div>
             </div>
+          ) : isMemberTypes ? (
+            /* SPECIAL MEMBER TYPES TABLE WITH REGISTRATION, MONTHLY & YEARLY FEES */
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <input
+                  aria-label="Search Member Types"
+                  className="w-full h-11 px-4 sm:max-w-[420px] border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none transition focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by Member Type..."
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdding((current) => !current);
+                    setMessage("");
+                  }}
+                  className="h-11 px-5 rounded-md bg-[#1677d2] hover:bg-[#1269bd] text-white text-sm font-bold shadow-sm transition cursor-pointer"
+                >
+                  {isAdding ? "Cancel" : "Create Member Type"}
+                </button>
+                <span className="h-10 px-4 inline-flex items-center rounded-full border border-[#1677d2] text-[#1677d2] text-sm font-semibold">
+                  Total: {memberTypesWithFee.length}
+                </span>
+              </div>
+
+              {message && <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200" role="status">{message}</p>}
+
+              {isAdding && (
+                <form onSubmit={handleCreateMemberType} className="p-5 bg-white border border-slate-300 rounded-xl space-y-4 shadow-sm">
+                  <h4 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Add New Member Type & Fee Setup</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase mb-1">Type Name *</label>
+                      <input
+                        type="text"
+                        value={newTypeForm.name}
+                        onChange={(e) => setNewTypeForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g. VIP Member"
+                        className="w-full h-9 px-3 border border-slate-300 rounded-md bg-white text-slate-900 outline-none font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase mb-1">Reg. Fee (₹)</label>
+                      <input
+                        type="number"
+                        value={newTypeForm.regFee}
+                        onChange={(e) => setNewTypeForm(prev => ({ ...prev, regFee: e.target.value }))}
+                        className="w-full h-9 px-3 border border-slate-300 rounded-md bg-white text-slate-900 outline-none font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase mb-1">Monthly Fee (₹)</label>
+                      <input
+                        type="number"
+                        value={newTypeForm.monthlyFee}
+                        onChange={(e) => setNewTypeForm(prev => ({ ...prev, monthlyFee: e.target.value }))}
+                        className="w-full h-9 px-3 border border-slate-300 rounded-md bg-white text-slate-900 outline-none font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase mb-1">Yearly Fee (₹)</label>
+                      <input
+                        type="number"
+                        value={newTypeForm.yearlyFee}
+                        onChange={(e) => setNewTypeForm(prev => ({ ...prev, yearlyFee: e.target.value }))}
+                        className="w-full h-9 px-3 border border-slate-300 rounded-md bg-white text-slate-900 outline-none font-bold"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <button type="submit" className="h-9 px-5 rounded-md bg-[#1677d2] hover:bg-[#1269bd] text-white text-xs font-bold shadow-sm transition">
+                      Save Member Type
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Member Types Fee Table */}
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <div className="min-w-[750px]">
+                  <div className="grid grid-cols-[70px_minmax(160px,1fr)_160px_160px_160px_110px] items-center bg-[#6495ed] text-white text-xs font-bold text-center">
+                    <div className="px-3 py-3 border-r border-white/70">ID</div>
+                    <div className="px-3 py-3 border-r border-white/70">Member Type</div>
+                    <div className="px-3 py-3 border-r border-white/70">Registration Fee (₹)</div>
+                    <div className="px-3 py-3 border-r border-white/70">Monthly Fee (₹)</div>
+                    <div className="px-3 py-3 border-r border-white/70">Yearly Fee (₹)</div>
+                    <div className="px-3 py-3">Actions</div>
+                  </div>
+
+                  {filteredOptions.length > 0 ? (
+                    filteredOptions.map((item, index) => (
+                      <div
+                        key={item.id || index}
+                        className={`grid grid-cols-[70px_minmax(160px,1fr)_160px_160px_160px_110px] min-h-[60px] items-center text-center text-xs text-slate-900 ${index % 2 === 0 ? "bg-[#f7f7f7]" : "bg-white"}`}
+                      >
+                        <div className="px-3 py-3 font-semibold">{index + 1}</div>
+                        <div className="px-3 py-3 font-extrabold text-sm text-[#102a43]">{item.name}</div>
+                        
+                        <div className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={item.regFee}
+                            onChange={(e) => handleMemberTypeFeeChange(item.id, 'regFee', e.target.value)}
+                            className="w-28 h-8 px-2 border border-slate-300 rounded text-center text-xs font-bold outline-none focus:border-[#1677d2] bg-white shadow-inner"
+                          />
+                        </div>
+
+                        <div className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={item.monthlyFee}
+                            onChange={(e) => handleMemberTypeFeeChange(item.id, 'monthlyFee', e.target.value)}
+                            className="w-28 h-8 px-2 border border-slate-300 rounded text-center text-xs font-bold outline-none focus:border-[#1677d2] bg-white shadow-inner"
+                          />
+                        </div>
+
+                        <div className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={item.yearlyFee}
+                            onChange={(e) => handleMemberTypeFeeChange(item.id, 'yearlyFee', e.target.value)}
+                            className="w-28 h-8 px-2 border border-slate-300 rounded text-center text-xs font-bold outline-none focus:border-[#1677d2] bg-white shadow-inner"
+                          />
+                        </div>
+
+                        <div className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => removeMemberType(item.id)}
+                            className="w-20 h-8 rounded-md bg-[#dc2f2f] hover:bg-[#c92525] text-white font-semibold shadow-sm transition cursor-pointer text-xs"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-center text-xs text-slate-500 bg-white">
+                      No member types found matching your search.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -436,7 +669,7 @@ export default function Settings() {
                   <button
                     type="button"
                     onClick={() => {
-                      setNewOption("");
+                      setNewTypeForm({ ...newTypeForm, name: "" });
                       setIsAdding((current) => !current);
                       setMessage("");
                     }}
@@ -456,8 +689,8 @@ export default function Settings() {
                     autoFocus
                     aria-label={`New ${activeCatalog.singular}`}
                     className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none transition focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
-                    value={newOption}
-                    onChange={(event) => setNewOption(event.target.value)}
+                    value={newTypeForm.name}
+                    onChange={(event) => setNewTypeForm({ ...newTypeForm, name: event.target.value })}
                     placeholder={`Enter ${activeCatalog.singular.toLocaleLowerCase()}`}
                     required
                   />

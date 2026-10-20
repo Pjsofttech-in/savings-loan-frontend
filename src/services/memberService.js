@@ -1,3 +1,4 @@
+// src/services/memberService.js
 import apiClient from "./apiClient";
 import { REGISTRATIONS_STORAGE_KEY } from "../constants/formOptions";
 
@@ -62,6 +63,18 @@ export async function fetchMemberById(memberId) {
     }
     if (!error.response) {
       throw new Error("Could not connect to the member lookup. Check that the backend is running.", { cause: error });
+    }
+    throw getMemberError(error);
+  }
+}
+
+export async function updateMember(memberId, memberData) {
+  try {
+    const { data } = await apiClient.put(`/api/members/${encodeURIComponent(memberId)}`, memberData);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      throw new Error("Could not connect to the server to update member. Check backend status.", { cause: error });
     }
     throw getMemberError(error);
   }

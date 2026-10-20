@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "./RegistrationFields";
 import { completeMemberRegistration } from "../../services/paymentService";
+import { updateMember } from "../../services/memberService";
 import { getRegistrationSettings } from "../../services/settingsService";
 
 const OCCUPATIONS = [
@@ -19,10 +20,9 @@ const ID_DOCUMENT_OPTIONS = [
   "Aadhaar Card", "PAN Card", "Driving License", "Voter ID Card", "Passport", "Other Government ID"
 ];
 
-export default function RegistrationForm() {
+export default function RegistrationForm({ editingMember = null, onCancelEdit, onSuccess }) {
   const [registrationSettings, setRegistrationSettings] = useState(getRegistrationSettings);
   
-  // Dynamic fee states
   const [adminRegistrationFee, setAdminRegistrationFee] = useState(() => {
     const s = getRegistrationSettings();
     return s?.amount || s?.fee || 500;
@@ -33,7 +33,6 @@ export default function RegistrationForm() {
     return s?.monthlyFee || 1000;
   });
 
-  // Dynamic bank accounts list from settings service
   const [bankAccounts, setBankAccounts] = useState(() => {
     const s = getRegistrationSettings();
     if (s?.bankAccounts && s.bankAccounts.length > 0) return s.bankAccounts;
@@ -44,7 +43,6 @@ export default function RegistrationForm() {
     ];
   });
 
-  // Listen for real-time settings updates from the Settings page
   useEffect(() => {
     const handleSettingsUpdate = () => {
       const s = getRegistrationSettings();
@@ -64,29 +62,54 @@ export default function RegistrationForm() {
 
   const [form, setForm] = useState({
     personal: {
-      fullName: "", fatherName: "", dob: "", gender: "", occupation: OCCUPATIONS[0],
-      memberType: registrationSettings.memberTypes?.[0] || "", membershipYear: registrationSettings.years?.[0] || "",
-      mobile: "", email: "", password: "", 
-      paymentStatus: PAYMENT_STATUS_OPTIONS[0],
-      paymentMode: PAYMENT_MODES[0],
-      transactionId: "",
-      sourceBank: "", 
-      destinationBank: bankAccounts[0]?.bankName || "SBI", 
-      nomineeName: "", nomineeRelationship: NOMINEE_RELATIONS[0], nomineeMobile: "",
+      fullName: editingMember?.fullName || editingMember?.user || "",
+      fatherName: editingMember?.fatherName || "",
+      dob: editingMember?.dob || "",
+      gender: editingMember?.gender || "Male",
+      occupation: editingMember?.occupation || OCCUPATIONS[0],
+      memberType: editingMember?.memberType || registrationSettings.memberTypes?.[0] || "",
+      membershipYear: editingMember?.membershipYear || registrationSettings.years?.[0] || "",
+      mobile: editingMember?.mobile || "",
+      email: editingMember?.email || "",
+      password: editingMember?.password || "", 
+      paymentStatus: editingMember?.paymentStatus || PAYMENT_STATUS_OPTIONS[0],
+      paymentMode: editingMember?.paymentMode || PAYMENT_MODES[0],
+      transactionId: editingMember?.transactionId || "",
+      sourceBank: editingMember?.sourceBank || "", 
+      destinationBank: editingMember?.destinationBank || bankAccounts[0]?.bankName || "SBI", 
+      nomineeName: editingMember?.nomineeName || "",
+      nomineeRelationship: editingMember?.nomineeRelationship || NOMINEE_RELATIONS[0],
+      nomineeMobile: editingMember?.nomineeMobile || "",
     },
-    address: { street: "", country: "India", state: "", district: "", taluka: "", city: "", pincode: "" },
-    witness: {
-      witnessName: "",
-      witnessMemberNo: "",
-      witnessPhone: "",
-      witnessEmail: "",
-      witnessIdProofType: ID_DOCUMENT_OPTIONS[0],
+    address: {
+      street: editingMember?.street || editingMember?.address || "",
+      country: "India",
+      state: editingMember?.state || "",
+      district: editingMember?.district || "",
+      taluka: editingMember?.taluka || "",
+      city: editingMember?.city || "",
+      pincode: editingMember?.pincode || ""
+    },
+    witness1: {
+      witnessName: editingMember?.witnessName || "",
+      witnessMemberNo: editingMember?.witnessMemberNo || "",
+      witnessPhone: editingMember?.witnessPhone || "",
+      witnessEmail: editingMember?.witnessEmail || "",
+      witnessIdProofType: editingMember?.witnessIdProofType || ID_DOCUMENT_OPTIONS[0],
+    },
+    witness2: {
+      witnessName: editingMember?.witness2Name || "",
+      witnessMemberNo: editingMember?.witness2MemberNo || "",
+      witnessPhone: editingMember?.witness2Phone || "",
+      witnessEmail: editingMember?.witness2Email || "",
+      witnessIdProofType: editingMember?.witness2IdProofType || ID_DOCUMENT_OPTIONS[0],
     }
   });
 
   const [documentType, setDocumentType] = useState("Aadhaar Card");
   const [documentFile, setDocumentFile] = useState(null);
   const [witnessDocFile, setWitnessDocFile] = useState(null);
+  const [witness2DocFile, setWitness2DocFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
@@ -125,11 +148,14 @@ export default function RegistrationForm() {
     if (!form.personal.mobile) newErrors.mobile = "Mobile required.";
     if (!form.address.pincode) newErrors.pincode = "Pincode required.";
     if (!form.personal.nomineeName) newErrors.nomineeName = "Nominee required.";
-    if (!form.personal.password || form.personal.password.length < 8) newErrors.password = "Min 8 chars required.";
-    if (!documentFile) newErrors.document = "Document required.";
-    if (!form.witness.witnessName) newErrors.witnessName = "Witness required.";
-    if (!form.witness.witnessMemberNo) newErrors.witnessMemberNo = "Witness ID required.";
-    if (!witnessDocFile) newErrors.witnessDoc = "Witness doc required.";
+    if (!editingMember && (!form.personal.password || form.personal.password.length < 8)) newErrors.password = "Min 8 chars required.";
+    if (!editingMember && !documentFile) newErrors.document = "Document required.";
+    
+    if (!form.witness1.witnessName) newErrors.witness1Name = "Witness 1 required.";
+    if (!form.witness1.witnessMemberNo) newErrors.witness1MemberNo = "Witness 1 ID required.";
+    if (!form.witness2.witnessName) newErrors.witness2Name = "Witness 2 required.";
+    if (!form.witness2.witnessMemberNo) newErrors.witness2MemberNo = "Witness 2 ID required.";
+
     if (!form.personal.destinationBank) newErrors.destinationBank = "Receiving bank required.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -141,26 +167,50 @@ export default function RegistrationForm() {
     setIsSubmitting(true);
 
     try {
-      const formData = new FormData();
-      Object.entries(form.personal).forEach(([key, val]) => formData.append(key, val));
-      Object.entries(form.address).forEach(([key, val]) => formData.append(key, val));
-      Object.entries(form.witness).forEach(([key, val]) => formData.append(key, val));
+      if (editingMember) {
+        const updatePayload = {
+          ...form.personal,
+          ...form.address,
+          witnessName: form.witness1.witnessName,
+          witnessMemberNo: form.witness1.witnessMemberNo,
+          witnessPhone: form.witness1.witnessPhone,
+          witnessEmail: form.witness1.witnessEmail,
+          witnessIdProofType: form.witness1.witnessIdProofType,
+          witness2Name: form.witness2.witnessName,
+          witness2MemberNo: form.witness2.witnessMemberNo,
+          witness2Phone: form.witness2.witnessPhone,
+          witness2Email: form.witness2.witnessEmail,
+          witness2IdProofType: form.witness2.witnessIdProofType,
+          registrationFee: adminRegistrationFee,
+          monthlyFee: monthlyContribution,
+        };
+        await updateMember(editingMember.id, updatePayload);
+        if (onSuccess) onSuccess();
+      } else {
+        const formData = new FormData();
+        Object.entries(form.personal).forEach(([key, val]) => formData.append(key, val));
+        Object.entries(form.address).forEach(([key, val]) => formData.append(key, val));
+        
+        Object.entries(form.witness1).forEach(([key, val]) => formData.append(key, val));
+        Object.entries(form.witness2).forEach(([key, val]) => formData.append("2" + key, val));
 
-      formData.append("registrationFee", adminRegistrationFee);
-      formData.append("monthlyFee", monthlyContribution);
-      formData.append("documentType", documentType);
-      formData.append("joiningDate", new Date().toISOString().slice(0, 10));
-      formData.append("destinationBank", form.personal.destinationBank);
-      formData.append("sourceBank", form.personal.sourceBank);
+        formData.append("registrationFee", adminRegistrationFee);
+        formData.append("monthlyFee", monthlyContribution);
+        formData.append("documentType", documentType);
+        formData.append("joiningDate", new Date().toISOString().slice(0, 10));
+        formData.append("destinationBank", form.personal.destinationBank);
+        formData.append("sourceBank", form.personal.sourceBank);
 
-      if (documentFile) formData.append("document", documentFile);
-      if (witnessDocFile) formData.append("witnessDocument", witnessDocFile);
+        if (documentFile) formData.append("document", documentFile);
+        if (witnessDocFile) formData.append("witnessDocument", witnessDocFile);
+        if (witness2DocFile) formData.append("witness2Document", witness2DocFile);
 
-      await completeMemberRegistration(formData);
-      setIsSubmitted(true);
+        await completeMemberRegistration(formData);
+        setIsSubmitted(true);
+      }
       window.dispatchEvent(new Event("dataUpdated"));
     } catch (error) {
-      setSubmissionError(error.message || "Registration failed.");
+      setSubmissionError(error.message || "Operation failed.");
     } finally {
       setIsSubmitting(false);
     }
@@ -170,12 +220,28 @@ export default function RegistrationForm() {
     <div className="registration-form-content max-w-[1300px] mx-auto font-sans text-xs">
       {isSubmitted && (
         <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 font-bold flex items-center justify-between">
-          <span>✓ Member registration completed successfully!</span>
+          <span>✓ Member registration with dual witness completed successfully!</span>
           <button onClick={() => setIsSubmitted(false)} className="underline text-emerald-700 cursor-pointer">Register Another</button>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
+        {editingMember && (
+          <div className="flex justify-between items-center bg-slate-100 border border-slate-200 p-3 rounded-xl mb-3">
+            <div>
+              <h3 className="text-slate-900 font-bold text-sm">
+                ✏️ Editing Member: {editingMember.fullName || editingMember.user}
+              </h3>
+              <p className="text-slate-600 text-[11px]">Update member particulars and witness details below.</p>
+            </div>
+            {onCancelEdit && (
+              <button type="button" onClick={onCancelEdit} className="px-3 py-1 bg-white hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-300 cursor-pointer">
+                Cancel Edit
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Section 1: Personal Details */}
         <FormSection id="personal-details" number="1" title="Member Personal Details" active={true}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -191,7 +257,9 @@ export default function RegistrationForm() {
             <FormField id="nominee-name" label="Nominee Name *" value={form.personal.nomineeName} onChange={(val) => updateField("personal", "nomineeName", val)} error={errors.nomineeName} placeholder="Nominee name" required />
             <SelectField id="nominee-relationship" label="Relationship *" value={form.personal.nomineeRelationship} onChange={(val) => updateField("personal", "nomineeRelationship", val)} options={NOMINEE_RELATIONS} required />
             <FormField id="nominee-mobile" label="Nominee Mobile" value={form.personal.nomineeMobile} onChange={(val) => updateField("personal", "nomineeMobile", val)} placeholder="Nominee mobile" required />
-            <FormField id="member-password" label="Password *" type="password" value={form.personal.password} onChange={(val) => updateField("personal", "password", val)} error={errors.password} placeholder="Min 8 chars" required />
+            {!editingMember && (
+              <FormField id="member-password" label="Password *" type="password" value={form.personal.password} onChange={(val) => updateField("personal", "password", val)} error={errors.password} placeholder="Min 8 chars" required />
+            )}
 
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-emerald-700 uppercase">Monthly Contribution</span>
@@ -214,32 +282,71 @@ export default function RegistrationForm() {
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
             <SelectField id="document-type" label="ID Proof Type *" value={documentType} onChange={(val) => setDocumentType(val)} options={ID_DOCUMENT_OPTIONS} required />
             <div>
-              <label htmlFor="verification-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload {documentType} *</label>
-              <input id="verification-doc" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setDocumentFile(e.target.files[0])} className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 border border-slate-300 rounded-lg p-1 bg-white cursor-pointer" />
+              <label htmlFor="verification-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload {documentType} {!editingMember && "*"}</label>
+              <input 
+                id="verification-doc" 
+                type="file" 
+                accept=".pdf,.jpg,.jpeg,.png" 
+                onChange={(e) => setDocumentFile(e.target.files[0])} 
+                className="max-w-xs text-xs text-slate-600 bg-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-teal-50 file:text-teal-700 file:font-semibold border border-slate-300 rounded p-1 cursor-pointer" 
+              />
               {errors.document && <p className="text-red-500 text-[10px] mt-0.5">{errors.document}</p>}
             </div>
           </div>
         </FormSection>
 
-        {/* Section 3: Witness & Payment Routing (Re-ordered sequence as requested) */}
-        <FormSection id="witness-details" number="3" title="Witness Verification & Payment Details" active={true}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            <FormField id="witness-name" label="Witness Name *" value={form.witness.witnessName} onChange={(val) => updateField("witness", "witnessName", val)} error={errors.witnessName} placeholder="Name" required />
-            <FormField id="witness-member-no" label="Witness Member No *" value={form.witness.witnessMemberNo} onChange={(val) => updateField("witness", "witnessMemberNo", val)} error={errors.witnessMemberNo} placeholder="ID" required />
-            <FormField id="witness-phone" label="Witness Phone *" value={form.witness.witnessPhone} onChange={(val) => updateField("witness", "witnessPhone", val)} placeholder="Phone" required />
-            <FormField id="witness-email" label="Witness Email" type="email" value={form.witness.witnessEmail} onChange={(val) => updateField("witness", "witnessEmail", val)} placeholder="Email" />
-            <SelectField id="witness-id-type" label="Witness ID Type *" value={form.witness.witnessIdProofType} onChange={(val) => updateField("witness", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
-            <div>
-              <label htmlFor="witness-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload Witness ID (PDF/Image) *</label>
-              <input id="witness-doc" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setWitnessDocFile(e.target.files[0])} className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 border border-slate-300 rounded-lg p-1 bg-white cursor-pointer" />
-              {errors.witnessDoc && <p className="text-red-500 text-[10px] mt-0.5">{errors.witnessDoc}</p>}
+        {/* Section 3: Dual Witness Verification & Payment Details */}
+        <FormSection id="witness-details" number="3" title="Dual Witness Verification & Payment Details" active={true}>
+          
+          {/* Witness 1 */}
+          <div className="mb-4 pb-3 border-b border-slate-200">
+            <h4 className="text-xs font-bold text-teal-800 uppercase mb-2">👤 Witness 1 Details</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <FormField id="witness1-name" label="Witness 1 Name *" value={form.witness1.witnessName} onChange={(val) => updateField("witness1", "witnessName", val)} error={errors.witness1Name} placeholder="Name" required />
+              <FormField id="witness1-member-no" label="Witness 1 Member No *" value={form.witness1.witnessMemberNo} onChange={(val) => updateField("witness1", "witnessMemberNo", val)} error={errors.witness1MemberNo} placeholder="ID" required />
+              <FormField id="witness1-phone" label="Witness 1 Phone *" value={form.witness1.witnessPhone} onChange={(val) => updateField("witness1", "witnessPhone", val)} placeholder="Phone" required />
+              <FormField id="witness1-email" label="Witness 1 Email" type="email" value={form.witness1.witnessEmail} onChange={(val) => updateField("witness1", "witnessEmail", val)} placeholder="Email" />
+              <SelectField id="witness1-id-type" label="Witness 1 ID Type *" value={form.witness1.witnessIdProofType} onChange={(val) => updateField("witness1", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+              <div>
+                <label htmlFor="witness1-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload Witness 1 ID (PDF/Image)</label>
+                <input 
+                  id="witness1-doc" 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png" 
+                  onChange={(e) => setWitnessDocFile(e.target.files[0])} 
+                  className="max-w-xs text-xs text-slate-600 bg-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-teal-50 file:text-teal-700 file:font-semibold border border-slate-300 rounded p-1 cursor-pointer" 
+                />
+              </div>
             </div>
           </div>
 
-          {/* PAYMENT & BANK ROUTING SECTION (Exact Requested Sequence: 1. Fee box, 2. Payment Status, 3. Payment Mode, 4. Receiver Bank) */}
+          {/* Witness 2 */}
+          <div className="mb-4 pb-3 border-b border-slate-200">
+            <h4 className="text-xs font-bold text-teal-800 uppercase mb-2">👤 Witness 2 Details</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <FormField id="witness2-name" label="Witness 2 Name *" value={form.witness2.witnessName} onChange={(val) => updateField("witness2", "witnessName", val)} error={errors.witness2Name} placeholder="Name" required />
+              <FormField id="witness2-member-no" label="Witness 2 Member No *" value={form.witness2.witnessMemberNo} onChange={(val) => updateField("witness2", "witnessMemberNo", val)} error={errors.witness2MemberNo} placeholder="ID" required />
+              <FormField id="witness2-phone" label="Witness 2 Phone *" value={form.witness2.witnessPhone} onChange={(val) => updateField("witness2", "witnessPhone", val)} placeholder="Phone" required />
+              <FormField id="witness2-email" label="Witness 2 Email" type="email" value={form.witness2.witnessEmail} onChange={(val) => updateField("witness2", "witnessEmail", val)} placeholder="Email" />
+              <SelectField id="witness2-id-type" label="Witness 2 ID Type *" value={form.witness2.witnessIdProofType} onChange={(val) => updateField("witness2", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+              <div>
+                <label htmlFor="witness2-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload Witness 2 ID (PDF/Image)</label>
+                <input 
+                  id="witness2-doc" 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png" 
+                  onChange={(e) => setWitness2DocFile(e.target.files[0])} 
+                  className="max-w-xs text-xs text-slate-600 bg-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-teal-50 file:text-teal-700 file:font-semibold border border-slate-300 rounded p-1 cursor-pointer" 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* PAYMENT & BANK ROUTING SECTION */}
           <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-slate-200">
               <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏦 Fund Routing &amp; Payment Details</span>
@@ -247,13 +354,11 @@ export default function RegistrationForm() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              {/* 1. Registration Fee Box (First) */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-col justify-center">
-                <span className="text-[9px] font-bold text-blue-700 uppercase">1. Registration Fee</span>
+                <span className="text-[9px] font-bold text-blue-700 uppercase">Registration Fee</span>
                 <span className="text-sm font-extrabold text-blue-900">₹{adminRegistrationFee}</span>
               </div>
 
-              {/* 2. Payment Status */}
               <div>
                 <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">2. Payment Status *</label>
                 <select
@@ -268,7 +373,6 @@ export default function RegistrationForm() {
                 </select>
               </div>
 
-              {/* 3. Payment Mode / Method */}
               <div>
                 <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">3. Payment Mode *</label>
                 <select
@@ -283,7 +387,6 @@ export default function RegistrationForm() {
                 </select>
               </div>
 
-              {/* 4. Receiver Bank Account (Destination Bank) */}
               <div>
                 <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">4. Receiver Bank *</label>
                 <select
@@ -332,8 +435,13 @@ export default function RegistrationForm() {
           )}
 
           <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-slate-200">
+            {editingMember && onCancelEdit && (
+              <button type="button" onClick={onCancelEdit} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
+                Cancel
+              </button>
+            )}
             <button type="submit" disabled={isSubmitting} className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold px-5 py-2 rounded-xl text-xs transition cursor-pointer shadow-sm">
-              {isSubmitting ? "Submitting..." : "Submit Registration"}
+              {isSubmitting ? "Saving..." : editingMember ? "Update Member" : "Submit Registration"}
             </button>
           </div>
         </FormSection>
