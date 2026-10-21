@@ -23,9 +23,10 @@ export default function List({ onEditMember }) {
     const loadData = async () => {
       if (!isMounted) return;
       setLoadingRecords(true);
+      setRecordsError("");
       try {
         const [memberRecords, shareRecords] = await Promise.all([
-          fetchMembers().catch(() => []),
+          fetchMembers(),
           fetchShareAllocations().catch(() => [])
         ]);
 
@@ -36,7 +37,8 @@ export default function List({ onEditMember }) {
 
         const sharesByMemberId = new Map();
         sharesList.forEach((share) => {
-          if (share && share.memberId) {
+          // keep the FIRST (registration) entry per member, not the last allocation
+          if (share && share.memberId && !sharesByMemberId.has(String(share.memberId))) {
             sharesByMemberId.set(String(share.memberId), share);
           }
         });
@@ -64,7 +66,10 @@ export default function List({ onEditMember }) {
 
         setRecords(combinedRecords);
       } catch (error) {
-        if (isMounted) setRecordsError(error.message || "Failed to load records.");
+        if (isMounted) {
+          setRecords([]);
+          setRecordsError(error.message || "Failed to load records.");
+        }
       } finally {
         if (isMounted) setLoadingRecords(false);
       }

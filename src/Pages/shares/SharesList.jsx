@@ -49,7 +49,7 @@ export default function SharesList({ onStartShares }) {
             ...share,
             quantity: qty,
             shareRange: `${start} - ${end}`,
-            memberName: matchedMember ? (matchedMember.fullName || matchedMember.name) : (share.memberName || share.memberId || "Registered Member")
+            memberName: matchedMember ? (matchedMember.fullName || matchedMember.name) : (share.fullName || share.memberName || share.memberId || "Registered Member")
           };
         });
 
@@ -61,16 +61,16 @@ export default function SharesList({ onStartShares }) {
   // Client-side search filtering
   const filteredShares = useMemo(() => {
     return shares.filter((item) => {
-      const name = item.memberName || item.memberId || "";
-      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
+      const name = String(item.memberName || item.memberId || "");
+      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || String(item.id).toLowerCase().includes(searchQuery.toLowerCase());
       return matchesSearch;
     });
   }, [shares, searchQuery]);
 
   // Vertical Summary Calculations
-  const totalAmount = filteredShares.reduce((acc, curr) => acc + (Number(curr.totalAmount || curr.quantity * 1000) || 0), 0);
-  const paidAmount = filteredShares.filter(i => i.status === "Paid" || i.status === "Installment" || i.status === "Complete").reduce((acc, curr) => acc + (Number(curr.totalAmount || curr.quantity * 1000) || 0), 0);
-  const pendingAmount = filteredShares.filter(i => i.status === "Pending").reduce((acc, curr) => acc + (Number(curr.totalAmount || curr.quantity * 1000) || 0), 0);
+  const totalAmount = filteredShares.reduce((acc, curr) => acc + (Number(curr.paymentAmount || curr.totalAmount || curr.quantity * 1000) || 0), 0);
+  const paidAmount = filteredShares.filter(i => i.status === "Paid" || i.status === "Installment" || i.status === "Complete").reduce((acc, curr) => acc + (Number(curr.paymentAmount || curr.totalAmount || curr.quantity * 1000) || 0), 0);
+  const pendingAmount = filteredShares.filter(i => i.status === "Pending").reduce((acc, curr) => acc + (Number(curr.paymentAmount || curr.totalAmount || curr.quantity * 1000) || 0), 0);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredShares.length / entriesPerPage) || 1;
@@ -215,7 +215,7 @@ export default function SharesList({ onStartShares }) {
                     <td className="p-3.5 font-semibold text-[#102a43]">{item.memberName}</td>
                     <td className="p-3.5 text-slate-600">{item.category || item.shareType}</td>
                     <td className="p-3.5 font-semibold">{item.quantity}</td>
-                    <td className="p-3.5 font-bold text-teal-700">₹{(item.totalAmount || item.quantity * (item.faceValue || 1000)).toLocaleString("en-IN")}</td>
+                    <td className="p-3.5 font-bold text-teal-700">₹{(item.paymentAmount || item.totalAmount || item.quantity * (item.faceValue || 1000)).toLocaleString("en-IN")}</td>
                     <td className="p-3.5 font-semibold text-slate-700">{item.paymentMode || item.mode || "UPI"}</td>
                     <td className="p-3.5 text-slate-600">{item.dueDate || "-"}</td>
                     <td className="p-3.5">

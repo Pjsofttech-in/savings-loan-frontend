@@ -21,7 +21,7 @@ export async function fetchShareAllocations() {
 
 export async function createShareAllocation(allocation) {
   try {
-    const { data } = await apiClient.post("/api/shares", allocation);
+    const { data } = await apiClient.post("/api/share-allocations", allocation);
     return data;
   } catch (error) {
     if (error.response) {

@@ -30,17 +30,9 @@ export async function fetchMembers() {
     localStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(membersList));
     return membersList;
   } catch (error) {
-    const cached = localStorage.getItem(MEMBERS_CACHE_KEY);
-    if (cached) {
-      try {
-        const parsedCache = JSON.parse(cached);
-        if (Array.isArray(parsedCache)) return parsedCache;
-      } catch (parseErr) {
-        console.warn("Failed to parse member cache", parseErr);
-      }
-    }
+    // Do NOT fall back to the cached list here: it hides new registrations and hides the real error.
     if (!error.response) {
-      throw new Error("Could not connect to the member list. Check that the backend is running.", { cause: error });
+      throw new Error("Could not connect to the member list. Check that the backend is running and CORS allows this origin.", { cause: error });
     }
     throw getMemberError(error);
   }
@@ -51,7 +43,7 @@ export async function fetchMemberById(memberId) {
     const { data } = await apiClient.get(`/api/members/${encodeURIComponent(memberId)}`);
     return data;
   } catch (error) {
-    const cached = localStorage.getItem(MEMBERS_CACHE_KEY);
+    const cached = !error.response ? localStorage.getItem(MEMBERS_CACHE_KEY) : null;
     if (cached) {
       try {
         const members = JSON.parse(cached);

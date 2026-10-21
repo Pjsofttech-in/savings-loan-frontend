@@ -6,10 +6,10 @@ import Navbar from "./Components/navbar";
 import Dashboard from "./Components/Dashboard";
 import RegistrationForm from "./Pages/registration/RegistrationForm";
 import RegistrationDashboard from "./Pages/registration/RegistrationDashboard";
-import List from "./Pages/registration/List"; // ← Import added
+import List from "./Pages/registration/List";
 import SharesApplicationForm from "./Pages/shares/SharesApplicationForm";
 import SharesDashboard from "./Pages/shares/SharesDashboard";
-import SharesList from "./Pages/registration/SharesList";
+import SharesList from "./Pages/shares/SharesList"; // Corrected path to shares folder
 
 import AddMember from "./Components/AddMember";
 
@@ -99,7 +99,7 @@ function App() {
             <div className="workflow-content max-w-[1400px] mx-auto w-full flex-1 p-6">
               {sharesSlide === "dashboard" && <SharesDashboard onStartShares={() => setSharesSlide("form")} onShowList={() => setSharesSlide("list")} />}
               {sharesSlide === "form" && <SharesApplicationForm />}
-              {sharesSlide === "list" && <SharesList />}
+              {sharesSlide === "list" && <SharesList onStartShares={() => setSharesSlide("form")} />}
             </div>
           </div>
         )}
