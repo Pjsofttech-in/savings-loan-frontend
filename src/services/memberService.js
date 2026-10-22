@@ -5,8 +5,10 @@ import { REGISTRATIONS_STORAGE_KEY } from "../constants/formOptions";
 const MEMBERS_CACHE_KEY = "cached_members_list";
 
 function getMemberError(error) {
+  // Agar 404 (Member not found) aaye, toh usko gracefully handle karne ke liye 
+  // null ya custom non-blocking error return karenge taaki witness/random ID par form block na ho.
   if (error.response?.status === 404) {
-    return new Error("No member exists with that ID.", { cause: error });
+    return null; 
   }
   return new Error(
     error.response?.data?.detail ||
@@ -30,11 +32,12 @@ export async function fetchMembers() {
     localStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(membersList));
     return membersList;
   } catch (error) {
-    // Do NOT fall back to the cached list here: it hides new registrations and hides the real error.
     if (!error.response) {
       throw new Error("Could not connect to the member list. Check that the backend is running and CORS allows this origin.", { cause: error });
     }
-    throw getMemberError(error);
+    const err = getMemberError(error);
+    if (err) throw err;
+    return [];
   }
 }
 
@@ -53,10 +56,18 @@ export async function fetchMemberById(memberId) {
         console.warn("Failed to parse member cache", parseErr);
       }
     }
+    
+    // Agar 404 hai toh null return kar do taaki random/witness member ID ke liye form fail na ho
+    if (error.response?.status === 404) {
+      return null;
+    }
+
     if (!error.response) {
       throw new Error("Could not connect to the member lookup. Check that the backend is running.", { cause: error });
     }
-    throw getMemberError(error);
+    const err = getMemberError(error);
+    if (err) throw err;
+    return null;
   }
 }
 
@@ -68,7 +79,9 @@ export async function updateMember(memberId, memberData) {
     if (!error.response) {
       throw new Error("Could not connect to the server to update member. Check backend status.", { cause: error });
     }
-    throw getMemberError(error);
+    const err = getMemberError(error);
+    if (err) throw err;
+    return null;
   }
 }
 

@@ -104,15 +104,7 @@ export default function List({ onEditMember }) {
     if (!editingMember) return;
     setSavingEdit(true);
     try {
-      if (typeof updateMember === "function") {
-        await updateMember(editingMember.id, editForm);
-      } else {
-        await fetch(`/api/members/${editingMember.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editForm),
-        });
-      }
+      await updateMember(editingMember.id, editForm);
       setEditingMember(null);
       window.dispatchEvent(new Event("dataUpdated"));
     } catch (err) {

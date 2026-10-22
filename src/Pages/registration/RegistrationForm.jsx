@@ -1,4 +1,3 @@
-// src/Pages/registration/RegistrationForm.jsx
 import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "./RegistrationFields";
 import { completeMemberRegistration } from "../../services/paymentService";
@@ -23,15 +22,27 @@ const ID_DOCUMENT_OPTIONS = [
 export default function RegistrationForm({ editingMember = null, onCancelEdit, onSuccess }) {
   const [registrationSettings, setRegistrationSettings] = useState(getRegistrationSettings);
   
-  const [adminRegistrationFee, setAdminRegistrationFee] = useState(() => {
-    const s = getRegistrationSettings();
-    return s?.amount || s?.fee || 500;
-  });
+  // Helper function to find fees for a specific member type
+  const getFeesForType = (typeName, settingsObj = registrationSettings) => {
+    if (settingsObj?.memberTypesWithFee && Array.isArray(settingsObj.memberTypesWithFee)) {
+      const found = settingsObj.memberTypesWithFee.find(
+        (t) => t.name.toLowerCase() === typeName.toLowerCase()
+      );
+      if (found) {
+        return { regFee: found.regFee ?? 500, monthlyFee: found.monthlyFee ?? 1000 };
+      }
+    }
+    return {
+      regFee: settingsObj?.amount || settingsObj?.fee || 500,
+      monthlyFee: settingsObj?.monthlyFee || 1000
+    };
+  };
 
-  const [monthlyContribution, setMonthlyContribution] = useState(() => {
-    const s = getRegistrationSettings();
-    return s?.monthlyFee || 1000;
-  });
+  const initialMemberType = editingMember?.memberType || registrationSettings.memberTypes?.[0] || "General";
+  const initialFees = getFeesForType(initialMemberType, registrationSettings);
+
+  const [adminRegistrationFee, setAdminRegistrationFee] = useState(initialFees.regFee);
+  const [monthlyContribution, setMonthlyContribution] = useState(initialFees.monthlyFee);
 
   const [bankAccounts, setBankAccounts] = useState(() => {
     const s = getRegistrationSettings();
@@ -43,23 +54,6 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     ];
   });
 
-  useEffect(() => {
-    const handleSettingsUpdate = () => {
-      const s = getRegistrationSettings();
-      setRegistrationSettings(s);
-      if (s?.amount || s?.fee) setAdminRegistrationFee(s.amount || s.fee);
-      if (s?.monthlyFee) setMonthlyContribution(s.monthlyFee);
-      if (s?.bankAccounts && s.bankAccounts.length > 0) {
-        setBankAccounts(s.bankAccounts);
-      } else if (s?.bankAccount) {
-        setBankAccounts([s.bankAccount]);
-      }
-    };
-
-    window.addEventListener("settingsUpdated", handleSettingsUpdate);
-    return () => window.removeEventListener("settingsUpdated", handleSettingsUpdate);
-  }, []);
-
   const [form, setForm] = useState({
     personal: {
       fullName: editingMember?.fullName || editingMember?.user || "",
@@ -67,7 +61,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
       dob: editingMember?.dob || "",
       gender: editingMember?.gender || "Male",
       occupation: editingMember?.occupation || OCCUPATIONS[0],
-      memberType: editingMember?.memberType || registrationSettings.memberTypes?.[0] || "",
+      memberType: initialMemberType,
       membershipYear: editingMember?.membershipYear || registrationSettings.years?.[0] || "",
       mobile: editingMember?.mobile || "",
       email: editingMember?.email || "",
@@ -106,6 +100,24 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     }
   });
 
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const s = getRegistrationSettings();
+      setRegistrationSettings(s);
+      if (s?.bankAccounts && s.bankAccounts.length > 0) {
+        setBankAccounts(s.bankAccounts);
+      } else if (s?.bankAccount) {
+        setBankAccounts([s.bankAccount]);
+      }
+      const fees = getFeesForType(form.personal.memberType, s);
+      setAdminRegistrationFee(fees.regFee);
+      setMonthlyContribution(fees.monthlyFee);
+    };
+
+    window.addEventListener("settingsUpdated", handleSettingsUpdate);
+    return () => window.removeEventListener("settingsUpdated", handleSettingsUpdate);
+  }, [form.personal.memberType]);
+
   const [documentType, setDocumentType] = useState("Aadhaar Card");
   const [documentFile, setDocumentFile] = useState(null);
   const [witnessDocFile, setWitnessDocFile] = useState(null);
@@ -121,6 +133,12 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
       [section]: { ...prev[section], [field]: value },
     }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
+
+    if (section === "personal" && field === "memberType") {
+      const fees = getFeesForType(value, registrationSettings);
+      setAdminRegistrationFee(fees.regFee);
+      setMonthlyContribution(fees.monthlyFee);
+    }
   };
 
   const handlePincodeChange = async (pincodeValue) => {
@@ -216,12 +234,16 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     }
   };
 
+  const memberTypeOptions = registrationSettings.memberTypesWithFee 
+    ? registrationSettings.memberTypesWithFee.map(t => t.name)
+    : registrationSettings.memberTypes || ["General", "Lifetime", "Honorary", "Founder"];
+
   return (
     <div className="registration-form-content max-w-[1300px] mx-auto font-sans text-xs">
       {isSubmitted && (
         <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 font-bold flex items-center justify-between">
           <span>✓ Member registration with dual witness completed successfully!</span>
-          <button onClick={() => setIsSubmitted(false)} className="underline text-emerald-700 cursor-pointer">Register Another</button>
+          <button type="button" onClick={() => setIsSubmitted(false)} className="underline text-emerald-700 cursor-pointer">Register Another</button>
         </div>
       )}
 
@@ -245,20 +267,29 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
         {/* Section 1: Personal Details */}
         <FormSection id="personal-details" number="1" title="Member Personal Details" active={true}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <FormField id="full-name" label="Full Name *" value={form.personal.fullName} onChange={(val) => updateField("personal", "fullName", val)} error={errors.fullName} placeholder="Full name" required />
-            <FormField id="father-name" label="Father's Name" value={form.personal.fatherName} onChange={(val) => updateField("personal", "fatherName", val)} placeholder="Father's name" />
+            <FormField id="fullName" label="Full Name *" value={form.personal.fullName} onChange={(val) => updateField("personal", "fullName", val)} error={errors.fullName} placeholder="Full name" required />
+            <FormField id="fatherName" label="Father's Name" value={form.personal.fatherName} onChange={(val) => updateField("personal", "fatherName", val)} placeholder="Father's name" />
             <FormField id="dob" label="DOB" type="date" value={form.personal.dob} onChange={(val) => updateField("personal", "dob", val)} />
             <SelectField id="gender" label="Gender" value={form.personal.gender} onChange={(val) => updateField("personal", "gender", val)} options={["Male", "Female", "Other"]} />
             <SelectField id="occupation" label="Occupation *" value={form.personal.occupation} onChange={(val) => updateField("personal", "occupation", val)} options={OCCUPATIONS} required />
-            <SelectField id="member-type" label="Member Type" value={form.personal.memberType} onChange={(val) => updateField("personal", "memberType", val)} options={registrationSettings.memberTypes || ["Standard"]} required />
-            <SelectField id="membership-year" label="Year" value={form.personal.membershipYear} onChange={(val) => updateField("personal", "membershipYear", val)} options={registrationSettings.years || ["2026"]} required />
+            
+            <SelectField 
+              id="memberType" 
+              label="Member Type *" 
+              value={form.personal.memberType} 
+              onChange={(val) => updateField("personal", "memberType", val)} 
+              options={memberTypeOptions} 
+              required 
+            />
+
+            <SelectField id="membershipYear" label="Year" value={form.personal.membershipYear} onChange={(val) => updateField("personal", "membershipYear", val)} options={registrationSettings.years || ["2026"]} required />
             <FormField id="mobile" label="Mobile *" value={form.personal.mobile} onChange={(val) => updateField("personal", "mobile", val)} error={errors.mobile} placeholder="10-digit mobile" required />
             <FormField id="email" label="Email" type="email" value={form.personal.email} onChange={(val) => updateField("personal", "email", val)} placeholder="Email" />
-            <FormField id="nominee-name" label="Nominee Name *" value={form.personal.nomineeName} onChange={(val) => updateField("personal", "nomineeName", val)} error={errors.nomineeName} placeholder="Nominee name" required />
-            <SelectField id="nominee-relationship" label="Relationship *" value={form.personal.nomineeRelationship} onChange={(val) => updateField("personal", "nomineeRelationship", val)} options={NOMINEE_RELATIONS} required />
-            <FormField id="nominee-mobile" label="Nominee Mobile" value={form.personal.nomineeMobile} onChange={(val) => updateField("personal", "nomineeMobile", val)} placeholder="Nominee mobile" required />
+            <FormField id="nomineeName" label="Nominee Name *" value={form.personal.nomineeName} onChange={(val) => updateField("personal", "nomineeName", val)} error={errors.nomineeName} placeholder="Nominee name" required />
+            <SelectField id="nomineeRelationship" label="Relationship *" value={form.personal.nomineeRelationship} onChange={(val) => updateField("personal", "nomineeRelationship", val)} options={NOMINEE_RELATIONS} required />
+            <FormField id="nomineeMobile" label="Nominee Mobile" value={form.personal.nomineeMobile} onChange={(val) => updateField("personal", "nomineeMobile", val)} placeholder="Nominee mobile" required />
             {!editingMember && (
-              <FormField id="member-password" label="Password *" type="password" value={form.personal.password} onChange={(val) => updateField("personal", "password", val)} error={errors.password} placeholder="Min 8 chars" required />
+              <FormField id="password" label="Password *" type="password" value={form.personal.password} onChange={(val) => updateField("personal", "password", val)} error={errors.password} placeholder="Min 8 chars" required />
             )}
 
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex flex-col justify-center">
@@ -302,11 +333,11 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
           <div className="mb-4 pb-3 border-b border-slate-200">
             <h4 className="text-xs font-bold text-teal-800 uppercase mb-2">👤 Witness 1 Details</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              <FormField id="witness1-name" label="Witness 1 Name *" value={form.witness1.witnessName} onChange={(val) => updateField("witness1", "witnessName", val)} error={errors.witness1Name} placeholder="Name" required />
-              <FormField id="witness1-member-no" label="Witness 1 Member No *" value={form.witness1.witnessMemberNo} onChange={(val) => updateField("witness1", "witnessMemberNo", val)} error={errors.witness1MemberNo} placeholder="ID" required />
-              <FormField id="witness1-phone" label="Witness 1 Phone *" value={form.witness1.witnessPhone} onChange={(val) => updateField("witness1", "witnessPhone", val)} placeholder="Phone" required />
-              <FormField id="witness1-email" label="Witness 1 Email" type="email" value={form.witness1.witnessEmail} onChange={(val) => updateField("witness1", "witnessEmail", val)} placeholder="Email" />
-              <SelectField id="witness1-id-type" label="Witness 1 ID Type *" value={form.witness1.witnessIdProofType} onChange={(val) => updateField("witness1", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
+              <FormField id="witnessName" label="Witness 1 Name *" value={form.witness1.witnessName} onChange={(val) => updateField("witness1", "witnessName", val)} error={errors.witness1Name} placeholder="Name" required />
+              <FormField id="witnessMemberNo" label="Witness 1 Member No *" value={form.witness1.witnessMemberNo} onChange={(val) => updateField("witness1", "witnessMemberNo", val)} error={errors.witness1MemberNo} placeholder="ID" required />
+              <FormField id="witnessPhone" label="Witness 1 Phone *" value={form.witness1.witnessPhone} onChange={(val) => updateField("witness1", "witnessPhone", val)} placeholder="Phone" required />
+              <FormField id="witnessEmail" label="Witness 1 Email" type="email" value={form.witness1.witnessEmail} onChange={(val) => updateField("witness1", "witnessEmail", val)} placeholder="Email" />
+              <SelectField id="witnessIdProofType" label="Witness 1 ID Type *" value={form.witness1.witnessIdProofType} onChange={(val) => updateField("witness1", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
             </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
               <div>
@@ -326,11 +357,11 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
           <div className="mb-4 pb-3 border-b border-slate-200">
             <h4 className="text-xs font-bold text-teal-800 uppercase mb-2">👤 Witness 2 Details</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              <FormField id="witness2-name" label="Witness 2 Name *" value={form.witness2.witnessName} onChange={(val) => updateField("witness2", "witnessName", val)} error={errors.witness2Name} placeholder="Name" required />
-              <FormField id="witness2-member-no" label="Witness 2 Member No *" value={form.witness2.witnessMemberNo} onChange={(val) => updateField("witness2", "witnessMemberNo", val)} error={errors.witness2MemberNo} placeholder="ID" required />
-              <FormField id="witness2-phone" label="Witness 2 Phone *" value={form.witness2.witnessPhone} onChange={(val) => updateField("witness2", "witnessPhone", val)} placeholder="Phone" required />
-              <FormField id="witness2-email" label="Witness 2 Email" type="email" value={form.witness2.witnessEmail} onChange={(val) => updateField("witness2", "witnessEmail", val)} placeholder="Email" />
-              <SelectField id="witness2-id-type" label="Witness 2 ID Type *" value={form.witness2.witnessIdProofType} onChange={(val) => updateField("witness2", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
+              <FormField id="witness2Name" label="Witness 2 Name *" value={form.witness2.witnessName} onChange={(val) => updateField("witness2", "witnessName", val)} error={errors.witness2Name} placeholder="Name" required />
+              <FormField id="witness2MemberNo" label="Witness 2 Member No *" value={form.witness2.witnessMemberNo} onChange={(val) => updateField("witness2", "witnessMemberNo", val)} error={errors.witness2MemberNo} placeholder="ID" required />
+              <FormField id="witness2Phone" label="Witness 2 Phone *" value={form.witness2.witnessPhone} onChange={(val) => updateField("witness2", "witnessPhone", val)} placeholder="Phone" required />
+              <FormField id="witness2Email" label="Witness 2 Email" type="email" value={form.witness2.witnessEmail} onChange={(val) => updateField("witness2", "witnessEmail", val)} placeholder="Email" />
+              <SelectField id="witness2IdProofType" label="Witness 2 ID Type *" value={form.witness2.witnessIdProofType} onChange={(val) => updateField("witness2", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
             </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
               <div>
@@ -414,7 +445,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
                   value={form.personal.sourceBank}
                   onChange={(e) => updateField("personal", "sourceBank", e.target.value)}
                   placeholder="e.g. HDFC / SBI / GPay / PhonePe"
-                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white text-slate-800"
                 />
               </div>
               <div>
@@ -424,7 +455,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
                   value={form.personal.transactionId}
                   onChange={(e) => updateField("personal", "transactionId", e.target.value)}
                   placeholder="Enter Bank UTR / Transaction Reference"
-                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white"
+                  className="w-full h-8 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white text-slate-800"
                 />
               </div>
             </div>

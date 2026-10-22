@@ -10,7 +10,6 @@ const catalogs = [
   { key: "memberTypes", title: "Member Types", singular: "Member Type", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0M19 8v6m3-3h-6" },
   { key: "years", title: "Membership Years", singular: "Membership Year", icon: "M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" },
   { key: "shareTypes", title: "Share Types", singular: "Share Type", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 5 9 5 9-5" },
-  { key: "fees", title: "Fee Settings", singular: "Fee Setting", icon: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" },
   { key: "bankAccount", title: "Bank Account", singular: "Bank Account", icon: "M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11" },
   { key: "members", title: "Members", singular: "Member", icon: "M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3a4 4 0 0 1 0 7m2 2a4 4 0 0 1 2 4" },
 ];
@@ -72,12 +71,6 @@ export default function Settings() {
     yearlyFee: 12000,
   });
 
-  // Fee settings local state
-  const [feeForm, setFeeForm] = useState({
-    amount: settings.amount || 500,
-    monthlyFee: settings.monthlyFee || 1000,
-  });
-
   // Bank Account list state
   const [bankAccounts, setBankAccounts] = useState(() => {
     if (settings.bankAccounts && Array.isArray(settings.bankAccounts)) return settings.bankAccounts;
@@ -96,7 +89,6 @@ export default function Settings() {
 
   const activeCatalog = catalogs.find(({ key }) => key === activeKey);
   const isMemberList = activeKey === "members";
-  const isFeeSettings = activeKey === "fees";
   const isBankAccount = activeKey === "bankAccount";
   const isMemberTypes = activeKey === "memberTypes";
   
@@ -104,7 +96,7 @@ export default function Settings() {
     ? members 
     : isMemberTypes
     ? memberTypesWithFee
-    : (!isFeeSettings && !isBankAccount && Array.isArray(settings[activeKey])) 
+    : (!isBankAccount && Array.isArray(settings[activeKey])) 
     ? settings[activeKey] 
     : [];
   
@@ -120,7 +112,7 @@ export default function Settings() {
     ? memberTypesWithFee.filter((t) =>
         t.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
       )
-    : (!isFeeSettings && !isBankAccount && Array.isArray(options))
+    : (!isBankAccount && Array.isArray(options))
     ? options.filter((option) =>
         option.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
       )
@@ -194,22 +186,6 @@ export default function Settings() {
       setMessage("Settings saved successfully.");
     } catch {
       setMessage("Could not save settings in this browser.");
-    }
-  };
-
-  const handleFeeSubmit = (e) => {
-    e.preventDefault();
-    try {
-      const nextSettings = saveRegistrationSettings({
-        ...settings,
-        amount: Number(feeForm.amount),
-        monthlyFee: Number(feeForm.monthlyFee),
-      });
-      setSettings(nextSettings);
-      setMessage("Fee settings updated successfully.");
-      window.dispatchEvent(new Event("settingsUpdated"));
-    } catch {
-      setMessage("Could not save fee settings.");
     }
   };
 
@@ -318,44 +294,7 @@ export default function Settings() {
 
         <section key={activeKey} className="settings-category-content rounded-lg border border-slate-200 bg-white p-4 sm:p-5" aria-label={activeCatalog.title}>
           
-          {isFeeSettings ? (
-            <div className="max-w-2xl">
-              <h3 className="text-base font-bold text-slate-800 mb-2">Configure Registration &amp; Monthly Fees</h3>
-              <p className="text-xs text-slate-500 mb-6">These amounts will automatically reflect on the member registration form in real-time.</p>
-
-              {message && <p className="mb-4 text-xs font-semibold text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200" role="status">{message}</p>}
-
-              <form onSubmit={handleFeeSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">One-Time Registration Fee (₹)</label>
-                  <input
-                    type="number"
-                    value={feeForm.amount}
-                    onChange={(e) => setFeeForm((prev) => ({ ...prev, amount: e.target.value }))}
-                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Monthly Contribution / Fee (₹)</label>
-                  <input
-                    type="number"
-                    value={feeForm.monthlyFee}
-                    onChange={(e) => setFeeForm((prev) => ({ ...prev, monthlyFee: e.target.value }))}
-                    className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm outline-none focus:border-[#1677d2] focus:ring-1 focus:ring-[#1677d2]"
-                    required
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <button type="submit" className="h-11 px-6 rounded-lg bg-[#1677d2] hover:bg-[#1269bd] text-white text-sm font-bold shadow-sm transition cursor-pointer">
-                    Save Fee Settings
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : isBankAccount ? (
+          {isBankAccount ? (
             <div className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -744,7 +683,7 @@ export default function Settings() {
                       )}
                     </div>
                   ))}
-                  {!filteredOptions.length && !isFeeSettings && (
+                  {!filteredOptions.length && (
                     <div className="px-4 py-8 text-center text-sm text-slate-500 bg-white">
                       {isLoadingMembers && isMemberList ? "Loading members..." : search ? "No matching records." : isMemberList ? "No members found." : "No options configured."}
                     </div>

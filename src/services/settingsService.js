@@ -1,44 +1,52 @@
 // src/services/settingsService.js
+import apiClient from "./apiClient";
 
-const DEFAULT_SETTINGS = {
-  amount: 500,
-  fee: 500,
-  monthlyFee: 1000,
-  memberTypes: ["General", "Lifetime", "Honorary"],
-  years: ["2026", "2027", "2028"],
-  shareTypes: ["Equity", "Preference"]
-};
+const SETTINGS_STORAGE_KEY = "app_registration_settings";
 
-export const getRegistrationSettings = () => {
+export function getRegistrationSettings() {
   try {
-    const storedSettings = localStorage.getItem("registrationSettings");
-    if (storedSettings) {
-      const parsed = JSON.parse(storedSettings);
-      return {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        amount: parsed.amount || parsed.fee || DEFAULT_SETTINGS.amount,
-        monthlyFee: parsed.monthlyFee || DEFAULT_SETTINGS.monthlyFee,
-        memberTypes: parsed.memberTypes?.length ? parsed.memberTypes : DEFAULT_SETTINGS.memberTypes,
-        years: parsed.years?.length ? parsed.years : DEFAULT_SETTINGS.years,
-        shareTypes: parsed.shareTypes?.length ? parsed.shareTypes : DEFAULT_SETTINGS.shareTypes
-      };
+    const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : { 
+      amount: 500, 
+      monthlyFee: 1000, 
+      memberTypes: ["General", "Lifetime", "Honorary", "Founder"],
+      memberTypesWithFee: [
+        { id: 1, name: "General", regFee: 500, monthlyFee: 1000, yearlyFee: 12000 },
+        { id: 2, name: "Lifetime", regFee: 5000, monthlyFee: 0, yearlyFee: 0 },
+        { id: 3, name: "Honorary", regFee: 0, monthlyFee: 0, yearlyFee: 0 },
+        { id: 4, name: "Founder", regFee: 10000, monthlyFee: 2000, yearlyFee: 24000 }
+      ],
+      bankAccounts: []
+    };
+  } catch {
+    return { 
+      amount: 500, 
+      monthlyFee: 1000, 
+      memberTypes: ["General", "Lifetime", "Honorary", "Founder"] 
+    };
+  }
+}
+
+export function saveRegistrationSettings(settings) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    return settings;
+  } catch {
+    return settings;
+  }
+}
+
+// Complete backend sync function for fee & full settings update
+export async function saveRegistrationFee(amount, monthlyFee = null) {
+  try {
+    const payload = { amount };
+    if (monthlyFee !== null) {
+      payload.monthlyFee = monthlyFee;
     }
+    const { data } = await apiClient.put("/api/payments/registration-fee", payload);
+    return data;
   } catch (error) {
-    console.error("Error reading settings:", error);
+    console.warn("Failed to update registration fee on server, falling back to local storage.", error);
+    throw error;
   }
-  return DEFAULT_SETTINGS;
-};
-
-export const saveRegistrationSettings = (newSettings) => {
-  try {
-    const currentSettings = getRegistrationSettings();
-    const updated = { ...currentSettings, ...newSettings };
-    localStorage.setItem("registrationSettings", JSON.stringify(updated));
-    window.dispatchEvent(new Event("settingsUpdated"));
-    return true;
-  } catch (error) {
-    console.error("Error saving settings:", error);
-    return false;
-  }
-};
+}
