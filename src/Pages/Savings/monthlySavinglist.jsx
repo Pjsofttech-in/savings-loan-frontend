@@ -2,14 +2,20 @@
 import { useState, useEffect, useMemo } from "react";
 import apiClient from "../../services/apiClient";
 
+const MONTHS_LIST = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const PAYMENT_MODES = ["Cash", "UPI / Online", "Bank Transfer", "Cheque"];
+
 export default function MonthlySavingList({ onStartSaving }) {
   const [savings, setSavings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
+  // Advanced Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
+  const [monthFilter, setMonthFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [modeFilter, setModeFilter] = useState("All");
 
   // Modal State for "i" Button & Calculator
   const [selectedSaving, setSelectedSaving] = useState(null);
@@ -32,8 +38,8 @@ export default function MonthlySavingList({ onStartSaving }) {
           month: item.month || "October",
           amountMonthly: Number(item.amountMonthly || item.amount) || 0,
           totalExpected: (Number(item.amountMonthly || item.amount) || 0) * 12,
-          status: item.status || "Paid",
-          mode: item.mode || "Bank Transfer",
+          status: item.status || item.paymentStatus || "Paid",
+          mode: item.mode || item.paymentMode || "Bank Transfer",
           dueDate: item.dueDate || "2026-10-30"
         })));
       })
@@ -46,10 +52,12 @@ export default function MonthlySavingList({ onStartSaving }) {
     return savings.filter((item) => {
       const matchesSearch = item.memberId.toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesYear = yearFilter === "All" || item.year === yearFilter;
+      const matchesMonth = monthFilter === "All" || item.month === monthFilter;
       const matchesStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchesSearch && matchesYear && matchesStatus;
+      const matchesMode = modeFilter === "All" || item.mode === modeFilter;
+      return matchesSearch && matchesYear && matchesMonth && matchesStatus && matchesMode;
     });
-  }, [savings, searchQuery, yearFilter, statusFilter]);
+  }, [savings, searchQuery, yearFilter, monthFilter, statusFilter, modeFilter]);
 
   // Financial Summary Totals
   const totalAmount = filteredSavings.reduce((acc, curr) => acc + curr.amountMonthly, 0);
@@ -86,8 +94,24 @@ export default function MonthlySavingList({ onStartSaving }) {
       {/* Filters & Summary Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters</h3>
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setYearFilter("All");
+                setMonthFilter("All");
+                setStatusFilter("All");
+                setModeFilter("All");
+                setCurrentPage(1);
+              }}
+              className="text-xs font-bold text-slate-600 hover:text-teal-700 underline cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <input
               type="text"
               placeholder="Search ID or Member ID..."
@@ -95,6 +119,7 @@ export default function MonthlySavingList({ onStartSaving }) {
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs w-full focus:outline-none focus:border-teal-700 bg-white text-slate-800"
             />
+            
             <select
               value={yearFilter}
               onChange={(e) => { setYearFilter(e.target.value); setCurrentPage(1); }}
@@ -103,16 +128,37 @@ export default function MonthlySavingList({ onStartSaving }) {
               <option value="All">All Years</option>
               <option value="2026">2026</option>
               <option value="2025">2025</option>
+              <option value="2024">2024</option>
             </select>
+
+            <select
+              value={monthFilter}
+              onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
+            >
+              <option value="All">All Months</option>
+              {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
             >
-              <option value="All">All Payment Statuses</option>
+              <option value="All">All Statuses</option>
               <option value="Paid">Paid</option>
+              <option value="Complete">Complete</option>
               <option value="Installment">Installment</option>
               <option value="Pending">Pending</option>
+            </select>
+
+            <select
+              value={modeFilter}
+              onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
+            >
+              <option value="All">All Payment Modes</option>
+              {PAYMENT_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
             </select>
           </div>
         </div>
@@ -146,13 +192,14 @@ export default function MonthlySavingList({ onStartSaving }) {
                 <th className="p-3.5">Member ID</th>
                 <th className="p-3.5">Year / Month</th>
                 <th className="p-3.5">Monthly Amount</th>
+                <th className="p-3.5">Payment Mode</th>
                 <th className="p-3.5">Payment Status</th>
                 <th className="p-3.5 text-center">Action ("i")</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
               {loading ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-400">Loading live savings records from database...</td></tr>
+                <tr><td colSpan="7" className="p-8 text-center text-slate-400">Loading live savings records from database...</td></tr>
               ) : paginatedData.length > 0 ? (
                 paginatedData.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition">
@@ -160,6 +207,7 @@ export default function MonthlySavingList({ onStartSaving }) {
                     <td className="p-3.5 text-slate-500">{item.memberId}</td>
                     <td className="p-3.5 text-slate-600">{item.month} {item.year}</td>
                     <td className="p-3.5 font-bold text-teal-700">₹{item.amountMonthly.toLocaleString("en-IN")}</td>
+                    <td className="p-3.5 text-slate-600">{item.mode}</td>
                     <td className="p-3.5">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                         item.status === "Paid" || item.status === "Complete" ? "bg-emerald-100 text-emerald-800" :
@@ -184,7 +232,7 @@ export default function MonthlySavingList({ onStartSaving }) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-slate-400">No saving records found in database.</td>
+                  <td colSpan="7" className="p-8 text-center text-slate-400">No saving records found matching your filters.</td>
                 </tr>
               )}
             </tbody>

@@ -15,7 +15,9 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
 
   const [selectedYear, setSelectedYear] = useState("2026");
   const [selectedMonth, setSelectedMonth] = useState("All");
+  const [viewMode, setViewMode] = useState("monthly"); // "monthly" or "yearly"
   const [monthlyTrend, setMonthlyTrend] = useState([]);
+  const [yearlyTrend, setYearlyTrend] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
       .then(res => {
         const list = Array.isArray(res.data) ? res.data : [];
         const totalCount = list.length;
-        const totalAmt = list.reduce((sum, item) => sum + (Number(item.paymentAmount || item.amount) || 0), 0);
+        const totalAmt = list.reduce((sum, item) => sum + (Number(item.paymentAmount || item.amount || (item.quantity * item.faceValue)) || 0), 0);
 
         setStats({
           today: { count: 1, amount: 1000 },
@@ -34,11 +36,22 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
         });
 
         const trendMap = MONTHS_LIST.map(m => ({ month: m, count: 0, amount: 0 }));
+        const yearsMap = { "2025": { year: "2025", count: 0, amount: 0 }, "2026": { year: "2026", count: 0, amount: 0 } };
+
         list.forEach(item => {
-          const yr = String(item.year || "2026");
-          const mName = item.month || "October";
-          const amt = Number(item.paymentAmount || item.amount) || 0;
+          const dt = item.applicationDate || item.date || "2026-10-19";
+          const yr = String(item.year || dt.substring(0, 4) || "2026");
+          const mName = item.month || MONTHS_LIST[new Date(dt).getMonth()] || "October";
+          const amt = Number(item.paymentAmount || item.amount || (item.quantity * item.faceValue) || 500) || 0;
           
+          if (yr) {
+            if (!yearsMap[yr]) {
+              yearsMap[yr] = { year: yr, count: 0, amount: 0 };
+            }
+            yearsMap[yr].count++;
+            yearsMap[yr].amount += amt;
+          }
+
           if (yr === selectedYear) {
             const found = trendMap.find(t => t.month.toLowerCase() === mName.toLowerCase());
             if (found) {
@@ -47,13 +60,16 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
             }
           }
         });
+
         setMonthlyTrend(trendMap);
+        setYearlyTrend(Object.values(yearsMap).sort((a, b) => a.year.localeCompare(b.year)));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedYear]);
 
-  const maxMonthCount = Math.max(...monthlyTrend.map(d => d.count), 5);
+  const activeTrendData = viewMode === "monthly" ? monthlyTrend : yearlyTrend;
+  const maxAmount = Math.max(...activeTrendData.map(d => d.amount), 5000);
 
   return (
     <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
@@ -97,49 +113,85 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
         </div>
       </div>
 
-      {/* Month-wise Shares Breakdown Graph with Filters in Header */}
+      {/* Shares Analytics Graph with Monthly/Yearly Switcher & Amount Display */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200">
           <div>
-            <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Shares Analytics</span>
-            <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider mt-0.5">Month-wise Share Allocations ({selectedYear})</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Shares Analytics</span>
+              <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex text-[11px] font-bold">
+                <button
+                  onClick={() => setViewMode("monthly")}
+                  className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === "monthly" ? "bg-teal-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Monthly View
+                </button>
+                <button
+                  onClick={() => setViewMode("yearly")}
+                  className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === "yearly" ? "bg-teal-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Yearly View
+                </button>
+              </div>
+            </div>
+            <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider mt-1">
+              {viewMode === "monthly" ? `Month-wise Share Allocations & Amount (${selectedYear})` : "Multi-Year Share Allocations & Amount Trend"}
+            </h3>
           </div>
+
           <div className="flex items-center gap-3">
-            <div>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-              >
-                <option value="All">All Months</option>
-                {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-              >
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-              </select>
-            </div>
+            {viewMode === "monthly" && (
+              <>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value="All">All Months</option>
+                  {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="flex items-end justify-between h-64 pt-8 pb-6 px-4 overflow-x-auto gap-4">
-          {monthlyTrend.map((item) => {
-            const heightPct = maxMonthCount > 0 ? Math.round((item.count / maxMonthCount) * 100) : 0;
-            const isSelected = selectedMonth === "All" || selectedMonth === item.month;
-            return (
-              <div key={item.month} className={`flex flex-col items-center gap-2 h-full justify-end min-w-[55px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
-                <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
-                <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} />
-                <span className="text-[11px] font-bold text-slate-700 mt-1 whitespace-nowrap">{item.month.slice(0, 3)}</span>
-              </div>
-            );
-          })}
+        {/* Graph Render with Amount and Count labels */}
+        <div className="flex items-end justify-around h-72 pt-10 pb-6 px-4 overflow-x-auto gap-4">
+          {viewMode === "monthly" ? (
+            monthlyTrend.map((item) => {
+              const heightPct = maxAmount > 0 ? Math.round((item.amount / maxAmount) * 100) : 0;
+              const isSelected = selectedMonth === "All" || selectedMonth === item.month;
+              return (
+                <div key={item.month} className={`flex flex-col items-center gap-1.5 h-full justify-end min-w-[55px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
+                  <span className="text-[10px] font-extrabold text-teal-800">{item.amount > 0 ? `₹${item.amount >= 1000 ? (item.amount/1000).toFixed(0) + 'k' : item.amount}` : ""}</span>
+                  <span className="text-[9px] font-bold text-slate-500">{item.count > 0 ? `(${item.count})` : ""}</span>
+                  <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} title={`${item.month}: ${item.count} shares (₹${item.amount})`} />
+                  <span className="text-[11px] font-bold text-slate-700 mt-1 whitespace-nowrap">{item.month.slice(0, 3)}</span>
+                </div>
+              );
+            })
+          ) : (
+            yearlyTrend.map((item) => {
+              const heightPct = maxAmount > 0 ? Math.round((item.amount / maxAmount) * 100) : 0;
+              return (
+                <div key={item.year} className="flex flex-col items-center gap-1.5 h-full justify-end min-w-[85px]">
+                  <span className="text-[11px] font-extrabold text-teal-800">{item.amount > 0 ? `₹${item.amount >= 1000 ? (item.amount/1000).toFixed(0) + 'k' : item.amount}` : "₹0"}</span>
+                  <span className="text-[10px] font-bold text-slate-500">({item.count} shares)</span>
+                  <div className="w-12 bg-teal-700 rounded-t hover:bg-teal-800 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} title={`Year ${item.year}: ${item.count} shares (₹${item.amount})`} />
+                  <span className="text-xs font-bold text-slate-800 mt-1">{item.year}</span>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

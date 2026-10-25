@@ -1,7 +1,8 @@
 // src/Pages/registration/List.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fetchMembers, updateMember } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
+import apiClient from "../../services/apiClient";
 
 export default function List({ onEditMember }) {
   const [records, setRecords] = useState([]);
@@ -11,67 +12,79 @@ export default function List({ onEditMember }) {
 
   // Edit Modal State
   const [editingMember, setEditingMember] = useState(null);
-  const [editForm, setEditForm] = useState({ fullName: "", mobile: "", address: "", registrationFee: 500 });
+  const [editForm, setEditForm] = useState({ fullName: "", mobile: "", address: "", registrationFee: 500, newPassword: "" });
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("All");
+  const [filterMemberStatus, setFilterMemberStatus] = useState("All");
+  const [filterCategory, setFilterCategory] = useState("All");
+  const [filterBank, setFilterBank] = useState("All");
+
+  const latestRequest = useRef(0);
+
+  const buildRecords = (memberRecords, shareRecords) => {
+    const membersList = Array.isArray(memberRecords) ? memberRecords : [];
+    const sharesList = Array.isArray(shareRecords) ? shareRecords : [];
+
+    const sharesByMemberId = new Map();
+    sharesList.forEach((share) => {
+      if (share && share.memberId && !sharesByMemberId.has(String(share.memberId))) {
+        sharesByMemberId.set(String(share.memberId), share);
+      }
+    });
+
+    return membersList.map((member) => {
+      const share = sharesByMemberId.get(String(member.id)) || {};
+      const hasAmount = share.paymentAmount !== undefined && share.paymentAmount !== null;
+      const shareAmount = hasAmount ? Number(share.paymentAmount) : Number(member.registrationFee) || 500;
+      const monthlyAmount = Number(share.monthlySaving || share.monthlyFee || member.monthlyFee) || 1000;
+      const status = share.paymentStatus || member.paymentStatus || "Complete";
+      const memberStatus = member.status || "Active";
+      const category = share.shareType || member.memberType || "Standard";
+      const bank = share.destinationBank || member.destinationBank || "SBI";
+
+      return {
+        id: member.id,
+        user: member.fullName || member.user || "Member",
+        memberId: member.id || "-",
+        shareAmount,
+        monthlyAmount,
+        mobile: member.mobile || "",
+        address: member.address || member.street || "",
+        category,
+        bank,
+        memberStatus,
+        date: member.applicationDate || member.joiningDate || share.applicationDate || "2026-10-20",
+        paymentMethod: share.paymentMethod || member.paymentMode || "Cash",
+        paymentStatus: status,
+        amount: `₹${shareAmount}`,
+        rawMember: member,
+        share,
+      };
+    });
+  };
 
   useEffect(() => {
     let isMounted = true;
 
     const loadData = async () => {
-      if (!isMounted) return;
-      setLoadingRecords(true);
+      const requestId = ++latestRequest.current;
       setRecordsError("");
       try {
         const [memberRecords, shareRecords] = await Promise.all([
           fetchMembers(),
-          fetchShareAllocations().catch(() => [])
+          fetchShareAllocations().catch(() => []),
         ]);
-
-        if (!isMounted) return;
-
-        const membersList = Array.isArray(memberRecords) ? memberRecords : [];
-        const sharesList = Array.isArray(shareRecords) ? shareRecords : [];
-
-        const sharesByMemberId = new Map();
-        sharesList.forEach((share) => {
-          // keep the FIRST (registration) entry per member, not the last allocation
-          if (share && share.memberId && !sharesByMemberId.has(String(share.memberId))) {
-            sharesByMemberId.set(String(share.memberId), share);
-          }
-        });
-
-        const combinedRecords = membersList.map((member) => {
-          const share = sharesByMemberId.get(String(member.id)) || {};
-          const amount = Number(share.paymentAmount) || Number(member.registrationFee) || 500;
-          const status = share.paymentStatus || member.paymentStatus || "Complete";
-
-          return {
-            id: member.id,
-            user: member.fullName || member.user || "Member",
-            memberId: member.id || "-",
-            memberFee: member.registrationFee || 500,
-            mobile: member.mobile || "",
-            address: member.address || member.street || "",
-            category: share.shareType || member.memberType || "Standard Member",
-            date: member.applicationDate || member.joiningDate || share.applicationDate || "2026-10-20",
-            paymentMethod: share.paymentMethod || member.paymentMode || "Cash",
-            paymentStatus: status,
-            amount: `₹${amount}`,
-            rawMember: member
-          };
-        });
-
-        setRecords(combinedRecords);
+        if (!isMounted || requestId !== latestRequest.current) return;
+        setRecords(buildRecords(memberRecords, shareRecords));
       } catch (error) {
-        if (isMounted) {
-          setRecords([]);
+        if (isMounted && requestId === latestRequest.current) {
           setRecordsError(error.message || "Failed to load records.");
         }
       } finally {
-        if (isMounted) setLoadingRecords(false);
+        if (isMounted && requestId === latestRequest.current) setLoadingRecords(false);
       }
     };
 
@@ -87,14 +100,26 @@ export default function List({ onEditMember }) {
   const handleEditClick = (record, e) => {
     e.stopPropagation();
     if (typeof onEditMember === "function") {
-      onEditMember(record.rawMember || record);
+      const share = record.share || {};
+      onEditMember({
+        ...(record.rawMember || {}),
+        registrationFee: record.shareAmount,
+        monthlyFee: record.monthlyAmount,
+        paymentStatus: record.paymentStatus,
+        paymentMode: record.paymentMethod,
+        transactionId: share.referenceNumber || "",
+        sourceBank: share.sourceBank || "",
+        destinationBank: record.bank,
+        memberType: record.category,
+      });
     } else {
       setEditingMember(record);
       setEditForm({
         fullName: record.user,
         mobile: record.mobile || "",
         address: record.address || "",
-        registrationFee: record.memberFee || 500,
+        registrationFee: record.shareAmount || 500,
+        newPassword: "",
       });
     }
   };
@@ -104,7 +129,19 @@ export default function List({ onEditMember }) {
     if (!editingMember) return;
     setSavingEdit(true);
     try {
-      await updateMember(editingMember.id, editForm);
+      const { newPassword, ...memberFields } = editForm;
+      const saved = await updateMember(editingMember.id, memberFields);
+      if (!saved) throw new Error("Member was not found on the server.");
+      
+      setRecords((prev) => prev.map((r) => (r.id === editingMember.id
+        ? { ...r, user: saved.fullName || r.user, mobile: saved.mobile || r.mobile, address: saved.address || r.address,
+            shareAmount: Number(memberFields.registrationFee) || r.shareAmount,
+            amount: `₹${Number(memberFields.registrationFee) || r.shareAmount}`, rawMember: saved }
+        : r)));
+      if (newPassword) {
+        if (newPassword.length < 8) throw new Error("Password must be at least 8 characters.");
+        await apiClient.put(`/api/members/${encodeURIComponent(editingMember.id)}/password`, { password: newPassword });
+      }
       setEditingMember(null);
       window.dispatchEvent(new Event("dataUpdated"));
     } catch (err) {
@@ -116,6 +153,9 @@ export default function List({ onEditMember }) {
 
   const filteredRecords = records.filter((item) => {
     if (filterPaymentStatus !== "All" && item.paymentStatus !== filterPaymentStatus) return false;
+    if (filterMemberStatus !== "All" && item.memberStatus !== filterMemberStatus) return false;
+    if (filterCategory !== "All" && item.category !== filterCategory) return false;
+    if (filterBank !== "All" && item.bank !== filterBank) return false;
     if (searchQuery.trim() && !item.user.toLowerCase().includes(searchQuery.toLowerCase()) && !String(item.memberId).toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
@@ -123,52 +163,105 @@ export default function List({ onEditMember }) {
   });
 
   const totalPaid = records
-    .filter((record) => record.paymentStatus === "Complete")
+    .filter((record) => record.paymentStatus === "Complete" || record.paymentStatus === "Paid")
     .reduce((total, record) => total + (Number(String(record.amount).replace(/[^0-9.-]+/g, "")) || 0), 0);
   
   const totalPending = records
     .filter((record) => record.paymentStatus === "Pending")
     .reduce((total, record) => total + (Number(String(record.amount).replace(/[^0-9.-]+/g, "")) || 0), 0);
 
+  const totalMonthly = filteredRecords.reduce((total, record) => total + (Number(record.monthlyAmount) || 0), 0);
+  const totalYearly = totalMonthly * 12;
+
   return (
     <div className="p-6 max-w-[1400px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
       
-      {/* Header & Controls */}
-      <div className="mb-5 pb-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-[#102a43] text-base font-bold m-0 uppercase tracking-wide">Member &amp; Transaction Directory</h2>
-          <p className="text-slate-500 text-[11px] mt-0.5">Review registered members, manage details, or inspect financial records.</p>
+      {/* Header & Advanced Filters */}
+      <div className="mb-5 pb-4 border-b border-slate-200 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-[#102a43] text-base font-bold m-0 uppercase tracking-wide">Member &amp; Transaction Directory</h2>
+            <p className="text-slate-500 text-[11px] mt-0.5">Review registered members, manage details, or inspect financial records.</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search ID or Name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs text-slate-800 outline-none focus:border-teal-600 shadow-2xs"
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            placeholder="Search by ID or Name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs text-slate-800 outline-none focus:border-teal-600 shadow-2xs"
-          />
+        {/* Filter Dropdowns Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
+          >
+            <option value="All">All Categories</option>
+            <option value="Standard">Standard</option>
+            <option value="Lifetime">Lifetime</option>
+            <option value="Founder">Founder</option>
+            <option value="Honorary">Honorary</option>
+          </select>
+
+          <select
+            value={filterBank}
+            onChange={(e) => setFilterBank(e.target.value)}
+            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
+          >
+            <option value="All">All Banks</option>
+            <option value="SBI">SBI</option>
+            <option value="HDFC Bank">HDFC Bank</option>
+            <option value="ICICI Bank">ICICI Bank</option>
+            <option value="Axis Bank">Axis Bank</option>
+          </select>
+
           <select
             value={filterPaymentStatus}
             onChange={(e) => setFilterPaymentStatus(e.target.value)}
             className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
           >
-            <option value="All">All Statuses</option>
+            <option value="All">All Payment Statuses</option>
             <option value="Complete">Complete</option>
             <option value="Pending">Pending</option>
+            <option value="Failed">Failed</option>
+            <option value="Partially Paid">Partially Paid</option>
+          </select>
+
+          <select
+            value={filterMemberStatus}
+            onChange={(e) => setFilterMemberStatus(e.target.value)}
+            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
+          >
+            <option value="All">All Member Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
           </select>
         </div>
       </div>
 
-      {/* Summary Badges */}
+      {/* Summary Badges (Clean White Background Cards) */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-1.5 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-2">
-          <span className="text-emerald-700 uppercase">Total Collected:</span>
-          <span className="text-sm font-extrabold">₹{totalPaid}</span>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
+          <span className="text-slate-500 uppercase font-bold">Total Collected:</span>
+          <span className="text-sm font-extrabold text-emerald-700">₹{totalPaid}</span>
         </div>
-        <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-1.5 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-2">
-          <span className="text-amber-700 uppercase">Total Pending:</span>
-          <span className="text-sm font-extrabold">₹{totalPending}</span>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
+          <span className="text-slate-500 uppercase font-bold">Total Pending:</span>
+          <span className="text-sm font-extrabold text-amber-600">₹{totalPending}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
+          <span className="text-slate-500 uppercase font-bold">Total Monthly:</span>
+          <span className="text-sm font-extrabold text-teal-700">₹{totalMonthly}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
+          <span className="text-slate-500 uppercase font-bold">Total Yearly:</span>
+          <span className="text-sm font-extrabold text-sky-700">₹{totalYearly}</span>
         </div>
       </div>
 
@@ -177,14 +270,15 @@ export default function List({ onEditMember }) {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-center">
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">Member ID</th>
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">User Name</th>
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">Member Fee</th>
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">Category</th>
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">Date</th>
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">Status</th>
-              <th className="py-3 px-4 border-r border-slate-200 font-bold">Amount</th>
-              <th className="py-3 px-4 font-bold text-center">Actions</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Member ID</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">User Name</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Category</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Bank</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Share Amount</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Monthly Amount</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Member Status</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Payment Status</th>
+              <th className="py-3 px-3 font-bold text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 text-center text-slate-700">
@@ -195,24 +289,34 @@ export default function List({ onEditMember }) {
                   onClick={() => setSelectedMember(record)}
                   className={`hover:bg-slate-50 cursor-pointer transition ${index % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
                 >
-                  <td className="py-3.5 px-4 font-mono font-bold text-slate-600">MEM-{record.memberId}</td>
-                  <td className="py-3.5 px-4 font-bold text-[#102a43]">{record.user}</td>
-                  <td className="py-3.5 px-4 font-bold text-teal-700">₹{record.memberFee}</td>
-                  <td className="py-3.5 px-4 text-slate-600 font-medium">{record.category}</td>
-                  <td className="py-3.5 px-4 text-slate-600">{record.date}</td>
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`px-2.5 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider ${
-                        record.paymentStatus === "Complete"
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                          : "bg-amber-100 text-amber-800 border border-amber-200"
-                      }`}
-                    >
+                  <td className="py-3.5 px-3 font-mono font-bold text-slate-600">MEM-{record.memberId}</td>
+                  <td className="py-3.5 px-3 font-bold text-[#102a43]">{record.user}</td>
+                  <td className="py-3.5 px-3 text-slate-600 font-medium">{record.category}</td>
+                  <td className="py-3.5 px-3 font-semibold text-slate-700">{record.bank}</td>
+                  <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.shareAmount}</td>
+                  <td className="py-3.5 px-3 font-bold text-slate-800">₹{record.monthlyAmount}</td>
+                  
+                  {/* Clean text member status */}
+                  <td className="py-3.5 px-3">
+                    <span className={`font-bold text-xs uppercase tracking-wider ${
+                      record.memberStatus === "Active" ? "text-teal-700" : "text-slate-500"
+                    }`}>
+                      {record.memberStatus}
+                    </span>
+                  </td>
+
+                  {/* Clean text payment status */}
+                  <td className="py-3.5 px-3">
+                    <span className={`font-bold text-xs uppercase tracking-wider ${
+                      record.paymentStatus === "Complete" || record.paymentStatus === "Paid"
+                        ? "text-emerald-700"
+                        : "text-amber-600"
+                    }`}>
                       {record.paymentStatus}
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 font-extrabold text-slate-900">{record.amount}</td>
-                  <td className="py-3.5 px-4 text-center">
+
+                  <td className="py-3.5 px-3 text-center">
                     <button
                       onClick={(e) => handleEditClick(record, e)}
                       className="px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md font-bold text-[11px] transition cursor-pointer shadow-2xs inline-flex items-center gap-1"
@@ -224,8 +328,8 @@ export default function List({ onEditMember }) {
               ))
             ) : (
               <tr>
-                <td colSpan="8" className="py-10 text-center text-slate-400 font-medium">
-                  {loadingRecords ? "Loading member records..." : recordsError || "No member records found."}
+                <td colSpan="9" className="py-10 text-center text-slate-400 font-medium">
+                  {loadingRecords ? "Loading member records..." : recordsError || "No member records found matching your filters."}
                 </td>
               </tr>
             )}
@@ -277,6 +381,17 @@ export default function List({ onEditMember }) {
                   type="text"
                   value={editForm.address}
                   onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                  className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Set / Reset Login Password</label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Leave empty to keep current (min 8 characters)"
+                  value={editForm.newPassword}
+                  onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
                   className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
                 />
               </div>
@@ -339,12 +454,16 @@ export default function List({ onEditMember }) {
                 <span className="font-bold text-slate-800">{selectedMember.mobile || "N/A"}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Member Fee:</span>
-                <span className="font-bold text-teal-700">₹{selectedMember.memberFee}</span>
+                <span className="text-slate-500">Share Amount:</span>
+                <span className="font-bold text-teal-700">₹{selectedMember.shareAmount}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Monthly Amount:</span>
+                <span className="font-bold text-slate-800">₹{selectedMember.monthlyAmount}</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-slate-500">Total Amount:</span>
-                <span className="font-bold text-slate-900">{selectedMember.amount}</span>
+                <span className="text-slate-500">Category / Bank:</span>
+                <span className="font-bold text-slate-900">{selectedMember.category} ({selectedMember.bank})</span>
               </div>
             </div>
 

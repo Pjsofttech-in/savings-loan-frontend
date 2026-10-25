@@ -2,6 +2,9 @@
 import { useState } from "react";
 import { FormField, SelectField, FormSection } from "../registration/RegistrationFields";
 
+const PAYMENT_STATUS_OPTIONS = ["Complete", "Pending", "Failed", "Partially Paid"];
+const PAYMENT_MODES = ["Cash", "UPI / Online", "Bank Transfer", "Cheque"];
+
 export default function MonthlySavingForm() {
   const [form, setForm] = useState({
     memberId: "",
@@ -9,6 +12,10 @@ export default function MonthlySavingForm() {
     year: "2026",
     month: "October",
     amountMonthly: "",
+    paymentStatus: PAYMENT_STATUS_OPTIONS[0],
+    paymentMode: PAYMENT_MODES[0],
+    sourceBank: "",
+    transactionId: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -27,6 +34,8 @@ export default function MonthlySavingForm() {
     if (!form.memberId) newErrors.memberId = "Member ID is required.";
     if (!form.numberOfMembers) newErrors.numberOfMembers = "Number of members is required.";
     if (!form.amountMonthly) newErrors.amountMonthly = "Monthly amount is required.";
+    if (!form.paymentStatus) newErrors.paymentStatus = "Payment status is required.";
+    if (!form.paymentMode) newErrors.paymentMode = "Payment mode is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -62,7 +71,7 @@ export default function MonthlySavingForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <FormSection id="saving-info" number="1" title="Saving Contribution Details" active={true}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <FormField
               id="member-id"
               label="Member ID *"
@@ -107,6 +116,36 @@ export default function MonthlySavingForm() {
               error={errors.amountMonthly}
               placeholder="e.g. 5000"
               required
+            />
+            <SelectField
+              id="payment-status"
+              label="Payment Status *"
+              value={form.paymentStatus}
+              onChange={(val) => updateField("paymentStatus", val)}
+              options={PAYMENT_STATUS_OPTIONS}
+              required
+            />
+            <SelectField
+              id="payment-mode"
+              label="Payment Mode *"
+              value={form.paymentMode}
+              onChange={(val) => updateField("paymentMode", val)}
+              options={PAYMENT_MODES}
+              required
+            />
+            <FormField
+              id="source-bank"
+              label="Payment Bank (Source)"
+              value={form.sourceBank}
+              onChange={(val) => updateField("sourceBank", val)}
+              placeholder="e.g. SBI / HDFC / GPay"
+            />
+            <FormField
+              id="transaction-id"
+              label="Transaction ID / UTR"
+              value={form.transactionId}
+              onChange={(val) => updateField("transactionId", val)}
+              placeholder="Enter UTR / Ref No."
             />
           </div>
 

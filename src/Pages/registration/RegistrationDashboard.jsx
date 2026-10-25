@@ -15,7 +15,9 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
 
   const [selectedYear, setSelectedYear] = useState("2026");
   const [selectedMonth, setSelectedMonth] = useState("All");
+  const [viewMode, setViewMode] = useState("monthly"); // "monthly" or "yearly"
   const [monthlyTrend, setMonthlyTrend] = useState([]);
+  const [yearlyTrend, setYearlyTrend] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,10 +34,24 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
           total: { count: totalMem, amount: totalMem * 500 },
         });
 
+        // 1. Monthly Trend for selectedYear
         const trendMap = MONTHS_LIST.map(m => ({ month: m, count: 0, amount: 0 }));
+        
+        // 2. Yearly Trend mapping
+        const yearsMap = { "2025": { year: "2025", count: 0, amount: 0 }, "2026": { year: "2026", count: 0, amount: 0 } };
+
         members.forEach(m => {
           const dt = m.joiningDate || m.applicationDate || "2026-10-19";
           const yr = dt.substring(0, 4);
+          
+          if (yr) {
+            if (!yearsMap[yr]) {
+              yearsMap[yr] = { year: yr, count: 0, amount: 0 };
+            }
+            yearsMap[yr].count++;
+            yearsMap[yr].amount += Number(m.registrationFee || 500);
+          }
+
           if (yr === selectedYear) {
             const monthIdx = new Date(dt).getMonth();
             if (!isNaN(monthIdx) && trendMap[monthIdx]) {
@@ -44,13 +60,16 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
             }
           }
         });
+
         setMonthlyTrend(trendMap);
+        setYearlyTrend(Object.values(yearsMap).sort((a, b) => a.year.localeCompare(b.year)));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedYear]);
 
-  const maxMonthCount = Math.max(...monthlyTrend.map(d => d.count), 5);
+  const activeTrendData = viewMode === "monthly" ? monthlyTrend : yearlyTrend;
+  const maxCount = Math.max(...activeTrendData.map(d => d.count), 5);
 
   return (
     <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
@@ -94,49 +113,84 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
         </div>
       </div>
 
-      {/* Monthly Breakdown Graph with Filters in Header */}
+      {/* Analytics Graph with Monthly & Yearly Switcher */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200">
           <div>
-            <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Registration Analytics</span>
-            <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider mt-0.5">Month-wise Registration Breakdown ({selectedYear})</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Registration Analytics</span>
+              {/* View Mode Toggle Switcher */}
+              <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex text-[11px] font-bold">
+                <button
+                  onClick={() => setViewMode("monthly")}
+                  className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === "monthly" ? "bg-teal-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Monthly View
+                </button>
+                <button
+                  onClick={() => setViewMode("yearly")}
+                  className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === "yearly" ? "bg-teal-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Yearly View
+                </button>
+              </div>
+            </div>
+            <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider mt-1">
+              {viewMode === "monthly" ? `Month-wise Breakdown (${selectedYear})` : "Multi-Year Registration Trend"}
+            </h3>
           </div>
+
           <div className="flex items-center gap-3">
-            <div>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-              >
-                <option value="All">All Months</option>
-                {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-              >
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-              </select>
-            </div>
+            {viewMode === "monthly" && (
+              <>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value="All">All Months</option>
+                  {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="flex items-end justify-between h-64 pt-8 pb-6 px-4 overflow-x-auto gap-4">
-          {monthlyTrend.map((item) => {
-            const heightPct = maxMonthCount > 0 ? Math.round((item.count / maxMonthCount) * 100) : 0;
-            const isSelected = selectedMonth === "All" || selectedMonth === item.month;
-            return (
-              <div key={item.month} className={`flex flex-col items-center gap-2 h-full justify-end min-w-[55px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
-                <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
-                <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} />
-                <span className="text-[11px] font-bold text-slate-700 mt-1 whitespace-nowrap">{item.month.slice(0, 3)}</span>
-              </div>
-            );
-          })}
+        {/* Dynamic Bar Chart Render */}
+        <div className="flex items-end justify-around h-64 pt-8 pb-6 px-4 overflow-x-auto gap-4">
+          {viewMode === "monthly" ? (
+            monthlyTrend.map((item) => {
+              const heightPct = maxCount > 0 ? Math.round((item.count / maxCount) * 100) : 0;
+              const isSelected = selectedMonth === "All" || selectedMonth === item.month;
+              return (
+                <div key={item.month} className={`flex flex-col items-center gap-2 h-full justify-end min-w-[50px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
+                  <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
+                  <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} title={`${item.month}: ${item.count} registrations (₹${item.amount})`} />
+                  <span className="text-[11px] font-bold text-slate-700 mt-1 whitespace-nowrap">{item.month.slice(0, 3)}</span>
+                </div>
+              );
+            })
+          ) : (
+            yearlyTrend.map((item) => {
+              const heightPct = maxCount > 0 ? Math.round((item.count / maxCount) * 100) : 0;
+              return (
+                <div key={item.year} className="flex flex-col items-center gap-2 h-full justify-end min-w-[80px]">
+                  <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : "0"}</span>
+                  <div className="w-12 bg-teal-700 rounded-t hover:bg-teal-800 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} title={`Year ${item.year}: ${item.count} registrations (₹${item.amount})`} />
+                  <span className="text-xs font-bold text-slate-800 mt-1">{item.year}</span>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
