@@ -25,11 +25,12 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
       .then(res => {
         const list = Array.isArray(res.data) ? res.data : [];
         const totalCount = list.length;
-        const totalAmt = list.reduce((sum, item) => sum + (Number(item.paymentAmount || item.amount || (item.quantity * item.faceValue)) || 0), 0);
+        const rawTotalAmt = list.reduce((sum, item) => sum + (Number(item.paymentAmount || item.amount || (item.quantity * item.faceValue)) || 0), 0);
+        const totalAmt = Number(rawTotalAmt.toFixed(2));
 
         setStats({
           today: { count: 1, amount: 1000 },
-          week: { count: Math.min(totalCount, 5), amount: Math.min(totalAmt, 5000) },
+          week: { count: Math.min(totalCount, 5), amount: Number(Math.min(totalAmt, 5000).toFixed(2)) },
           month: { count: totalCount, amount: totalAmt },
           year: { count: totalCount, amount: totalAmt },
           total: { count: totalCount, amount: totalAmt },
@@ -49,14 +50,14 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
               yearsMap[yr] = { year: yr, count: 0, amount: 0 };
             }
             yearsMap[yr].count++;
-            yearsMap[yr].amount += amt;
+            yearsMap[yr].amount = Number((yearsMap[yr].amount + amt).toFixed(2));
           }
 
           if (yr === selectedYear) {
             const found = trendMap.find(t => t.month.toLowerCase() === mName.toLowerCase());
             if (found) {
               found.count++;
-              found.amount += amt;
+              found.amount = Number((found.amount + amt).toFixed(2));
             }
           }
         });
@@ -76,39 +77,39 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
       
       {/* Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-xl p-5 shadow-sm">
+        <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-xl p-5 shadow-sm overflow-hidden">
           <span className="text-[#0369a1] text-xs font-bold uppercase tracking-wider">Today (1 Day)</span>
           <div className="space-y-1 text-sm mt-2">
             <div className="flex justify-between text-[#0284c7]"><span>Entries</span><span className="font-bold">{stats.today.count}</span></div>
-            <div className="flex justify-between text-[#0369a1] pt-2 border-t border-[#bae6fd] font-extrabold text-base"><span>Amount</span><span>₹{stats.today.amount}</span></div>
+            <div className="flex justify-between text-[#0369a1] pt-2 border-t border-[#bae6fd] font-extrabold text-sm lg:text-base truncate"><span>Amount</span><span className="truncate">₹{stats.today.amount.toLocaleString("en-IN")}</span></div>
           </div>
         </div>
-        <div className="bg-[#ffedd5] border border-[#fed7aa] rounded-xl p-5 shadow-sm">
+        <div className="bg-[#ffedd5] border border-[#fed7aa] rounded-xl p-5 shadow-sm overflow-hidden">
           <span className="text-[#c2410c] text-xs font-bold uppercase tracking-wider">Last 7 Days</span>
           <div className="space-y-1 text-sm mt-2">
             <div className="flex justify-between text-[#ea580c]"><span>Entries</span><span className="font-bold">{stats.week.count}</span></div>
-            <div className="flex justify-between text-[#c2410c] pt-2 border-t border-[#fed7aa] font-extrabold text-base"><span>Amount</span><span>₹{stats.week.amount}</span></div>
+            <div className="flex justify-between text-[#c2410c] pt-2 border-t border-[#fed7aa] font-extrabold text-sm lg:text-base truncate"><span>Amount</span><span className="truncate">₹{stats.week.amount.toLocaleString("en-IN")}</span></div>
           </div>
         </div>
-        <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-xl p-5 shadow-sm">
+        <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-xl p-5 shadow-sm overflow-hidden">
           <span className="text-[#15803d] text-xs font-bold uppercase tracking-wider">Last 30 Days</span>
           <div className="space-y-1 text-sm mt-2">
             <div className="flex justify-between text-[#16a34a]"><span>Entries</span><span className="font-bold">{stats.month.count}</span></div>
-            <div className="flex justify-between text-[#15803d] pt-2 border-t border-[#bbf7d0] font-extrabold text-base"><span>Amount</span><span>₹{stats.month.amount}</span></div>
+            <div className="flex justify-between text-[#15803d] pt-2 border-t border-[#bbf7d0] font-extrabold text-sm lg:text-base truncate"><span>Amount</span><span className="truncate">₹{stats.month.amount.toLocaleString("en-IN")}</span></div>
           </div>
         </div>
-        <div className="bg-[#f3e8ff] border border-[#e9d5ff] rounded-xl p-5 shadow-sm">
+        <div className="bg-[#f3e8ff] border border-[#e9d5ff] rounded-xl p-5 shadow-sm overflow-hidden">
           <span className="text-[#7e22ce] text-xs font-bold uppercase tracking-wider">Last 365 Days</span>
           <div className="space-y-1 text-sm mt-2">
             <div className="flex justify-between text-[#9333ea]"><span>Entries</span><span className="font-bold">{stats.year.count}</span></div>
-            <div className="flex justify-between text-[#7e22ce] pt-2 border-t border-[#e9d5ff] font-extrabold text-base"><span>Amount</span><span>₹{stats.year.amount}</span></div>
+            <div className="flex justify-between text-[#7e22ce] pt-2 border-t border-[#e9d5ff] font-extrabold text-sm lg:text-base truncate"><span>Amount</span><span className="truncate">₹{stats.year.amount.toLocaleString("en-IN")}</span></div>
           </div>
         </div>
-        <div className="bg-[#ccfbf1] border border-[#99f6e4] rounded-xl p-5 shadow-sm">
+        <div className="bg-[#ccfbf1] border border-[#99f6e4] rounded-xl p-5 shadow-sm overflow-hidden">
           <span className="text-[#0f766e] text-xs font-bold uppercase tracking-wider">Total Cumulative</span>
           <div className="space-y-1 text-sm mt-2">
             <div className="flex justify-between text-[#0d9488]"><span>Total</span><span className="font-bold">{stats.total.count}</span></div>
-            <div className="flex justify-between text-[#0f766e] pt-2 border-t border-[#99f6e4] font-extrabold text-base"><span>Pool</span><span>₹{stats.total.amount}</span></div>
+            <div className="flex justify-between text-[#0f766e] pt-2 border-t border-[#99f6e4] font-extrabold text-sm lg:text-base truncate"><span>Pool</span><span className="truncate">₹{stats.total.amount.toLocaleString("en-IN")}</span></div>
           </div>
         </div>
       </div>
