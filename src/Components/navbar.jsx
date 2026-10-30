@@ -1,4 +1,4 @@
-// src/components/Navbar.jsx
+﻿// src/components/Navbar.jsx
 import { useEffect, useRef, useState } from "react";
 import logo from "../assets/Pj Soft.png";
 

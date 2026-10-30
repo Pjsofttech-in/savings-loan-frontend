@@ -1,4 +1,4 @@
-// src/Pages/shares/SharesDashboard.jsx
+﻿// src/Pages/shares/SharesDashboard.jsx
 import { useState, useEffect } from "react";
 import apiClient from "../../services/apiClient";
 
@@ -73,7 +73,7 @@ export default function SharesDashboard({ onStartShare, onShowList }) {
   const maxAmount = Math.max(...activeTrendData.map(d => d.amount), 5000);
 
   return (
-    <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
+    <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
       
       {/* Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

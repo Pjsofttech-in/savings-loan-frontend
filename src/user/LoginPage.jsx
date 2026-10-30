@@ -1,4 +1,4 @@
-// src/user/LoginPage.jsx
+﻿// src/user/LoginPage.jsx
 import { useEffect, useRef, useState } from "react";
 import logo from "../assets/Pj Soft.png";
 import { login } from "../services/authService";
@@ -233,3 +233,4 @@ export default function LoginPage({ onLoggedIn, notice = "" }) {
     </div>
   );
 }
+

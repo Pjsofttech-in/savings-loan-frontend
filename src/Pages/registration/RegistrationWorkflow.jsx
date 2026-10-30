@@ -1,4 +1,4 @@
-// src/Pages/registration/RegistrationWorkflow.jsx
+﻿// src/Pages/registration/RegistrationWorkflow.jsx
 import { useState } from "react";
 import RegistrationForm from "./RegistrationForm";
 import List from "../members/List"; // Adjust path to your List component
@@ -47,21 +47,21 @@ export default function RegistrationWorkflow() {
           <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
             <div className="border-b border-slate-200 pb-5 mb-6">
               <span className="text-teal-700 text-xs font-extrabold tracking-wider uppercase">Overview</span>
-              <h2 className="text-[#102a43] text-3xl font-extrabold mt-1 mb-2">Registration Dashboard</h2>
+              
               <p className="text-slate-500 text-sm">Monitor member onboarding, share allotments, and quick navigation metrics.</p>
             </div>
 
             {/* Metrics Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-              <div className="p-6 border border-slate-200 rounded-xl bg-teal-50/50 shadow-sm">
+              <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
                 <span className="text-slate-500 text-xs font-semibold block uppercase tracking-wider">Total Active Members</span>
                 <strong className="text-teal-900 text-4xl font-black mt-2 block">24</strong>
               </div>
-              <div className="p-6 border border-slate-200 rounded-xl bg-blue-50/50 shadow-sm">
+              <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
                 <span className="text-slate-500 text-xs font-semibold block uppercase tracking-wider">Total Shares Allotted</span>
                 <strong className="text-blue-900 text-4xl font-black mt-2 block">142</strong>
               </div>
-              <div className="p-6 border border-slate-200 rounded-xl bg-emerald-50/50 shadow-sm">
+              <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
                 <span className="text-slate-500 text-xs font-semibold block uppercase tracking-wider">Monthly Savings Pool</span>
                 <strong className="text-emerald-900 text-4xl font-black mt-2 block">₹ 1,42,000</strong>
               </div>

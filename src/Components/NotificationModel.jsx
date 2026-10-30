@@ -1,4 +1,4 @@
-// src/Components/NotificationModel.jsx
+﻿// src/Components/NotificationModel.jsx
 import { useState } from "react";
 
 export default function NotificationModal({ record, onClose }) {
@@ -34,7 +34,7 @@ export default function NotificationModal({ record, onClose }) {
         </div>
 
         {sentStatus ? (
-          <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-emerald-800 font-bold text-xs space-y-2">
+          <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
             <span className="text-3xl block">✅</span>
             Message successfully dispatched via {channel.toUpperCase()}!
           </div>

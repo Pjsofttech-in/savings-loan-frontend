@@ -1,4 +1,4 @@
-// src/Pages/Settings.jsx
+﻿// src/Pages/Settings.jsx
 import { useEffect, useState } from "react";
 import {
   getRegistrationSettings,

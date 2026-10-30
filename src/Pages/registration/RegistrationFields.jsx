@@ -1,4 +1,4 @@
-function FormField({ id, label, value, onChange, onBlur, readOnly = false, error, type = "text", required = false, placeholder, min, minLength, maxLength, pattern, step, inputMode, children, className = "" }) {
+﻿function FormField({ id, label, value, onChange, onBlur, readOnly = false, error, type = "text", required = false, placeholder, min, minLength, maxLength, pattern, step, inputMode, children, className = "" }) {
   const errorId = `${id}-error`;
   return (
     <div className={`relative min-w-0 mb-0 flex flex-col pt-1.5 ${className}`}>
@@ -96,7 +96,7 @@ function FormSection({ id, number, title, children, className = "", active = tru
         <span className="text-teal-700 text-[12px] font-extrabold tracking-wide">{number}</span>
         <h2 className="text-[#102a43] text-[19px] font-bold m-0">{title}</h2>
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">{children}</div>
     </section>
   );
 }

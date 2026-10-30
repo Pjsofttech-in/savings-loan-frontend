@@ -1,4 +1,4 @@
-// src/Pages/registration/RegistrationDashboard.jsx
+﻿// src/Pages/registration/RegistrationDashboard.jsx
 import { useState, useEffect } from "react";
 import apiClient from "../../services/apiClient";
 
@@ -88,7 +88,7 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
   const maxAmount = rawMax * 1.1;
 
   return (
-    <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
+    <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
       
       {/* Top Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

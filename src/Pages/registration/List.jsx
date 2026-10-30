@@ -1,4 +1,4 @@
-// src/Pages/registration/List.jsx
+﻿// src/Pages/registration/List.jsx
 import { useState, useEffect, useRef } from "react";
 import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
@@ -174,14 +174,14 @@ export default function List({ onEditMember }) {
   const rawM = selectedMember ? (selectedMember.rawMember || selectedMember) : null;
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
+    <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
       
       {/* Header & Advanced Filters */}
       <div className="mb-5 pb-4 border-b border-slate-200 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-[#102a43] text-base font-bold m-0 uppercase tracking-wide">Member &amp; Transaction Directory</h2>
-            <p className="text-slate-500 text-[11px] mt-0.5">Review registered members, manage details, or inspect financial records.</p>
+            
+            
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

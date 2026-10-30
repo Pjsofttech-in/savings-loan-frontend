@@ -1,4 +1,4 @@
-// src/Pages/registration/RegistrationSections.jsx
+﻿// src/Pages/registration/RegistrationSections.jsx
 
 import {
   ID_OPTIONS,

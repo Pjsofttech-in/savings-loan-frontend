@@ -1,4 +1,4 @@
-const palettes = [
+﻿const palettes = [
   { background: "#dbeafe", skin: "#c6865b", hair: "#30221b", shirt: "#2563eb" },
   { background: "#fce7f3", skin: "#e0a476", hair: "#34211d", shirt: "#be185d" },
   { background: "#dcfce7", skin: "#a96c4f", hair: "#201a18", shirt: "#15803d" },
@@ -37,3 +37,4 @@ export default function MemberAvatar({ name, className = "" }) {
     </svg>
   );
 }
+

@@ -1,4 +1,4 @@
-import logo from "../assets/Pj Soft.png";
+﻿import logo from "../assets/Pj Soft.png";
 
 function Footer() {
   return (
@@ -43,3 +43,4 @@ function Footer() {
 }
 
 export default Footer;
+

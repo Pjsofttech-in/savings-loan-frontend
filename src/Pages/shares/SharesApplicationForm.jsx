@@ -1,4 +1,4 @@
-// src/Pages/shares/SharesApplicationForm.jsx
+﻿// src/Pages/shares/SharesApplicationForm.jsx
 
 import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "../registration/RegistrationFields";

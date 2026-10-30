@@ -1,4 +1,4 @@
-// src/pages/shares/ShareList.jsx
+﻿// src/pages/shares/ShareList.jsx
 import { useState, useEffect, useCallback, useMemo } from "react";
 import apiClient from "../../services/apiClient";
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "./RegistrationFields";
 import { completeMemberRegistration } from "../../services/paymentService";
 import { updateMember } from "../../services/memberService";

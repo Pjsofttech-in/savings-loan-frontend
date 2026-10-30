@@ -1,4 +1,4 @@
-// src/Pages/shares/ProfessionalMarketChart.jsx
+﻿// src/Pages/shares/ProfessionalMarketChart.jsx
 import { useState, useEffect, useRef } from "react";
 
 export default function ProfessionalMarketChart() {
