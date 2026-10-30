@@ -1,19 +1,16 @@
 // src/Pages/registration/List.jsx
 import { useState, useEffect, useRef } from "react";
-import { fetchMembers, updateMember } from "../../services/memberService";
+import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
-import apiClient from "../../services/apiClient";
 
 export default function List({ onEditMember }) {
   const [records, setRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [recordsError, setRecordsError] = useState("");
+  
+  // Selected Member for Full Profile Modal
   const [selectedMember, setSelectedMember] = useState(null);
-
-  // Edit Modal State
-  const [editingMember, setEditingMember] = useState(null);
-  const [editForm, setEditForm] = useState({ fullName: "", mobile: "", address: "", registrationFee: 500, newPassword: "" });
-  const [savingEdit, setSavingEdit] = useState(false);
+  const [activeTab, setActiveTab] = useState("personal");
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,57 +94,58 @@ export default function List({ onEditMember }) {
     };
   }, []);
 
-  const handleEditClick = (record, e) => {
-    e.stopPropagation();
+  const handleEditClick = (record) => {
     if (typeof onEditMember === "function") {
+      const raw = record.rawMember || {};
       const share = record.share || {};
-      onEditMember({
-        ...(record.rawMember || {}),
-        registrationFee: record.shareAmount,
-        monthlyFee: record.monthlyAmount,
-        paymentStatus: record.paymentStatus,
-        paymentMode: record.paymentMethod,
-        transactionId: share.referenceNumber || "",
-        sourceBank: share.sourceBank || "",
-        destinationBank: record.bank,
-        memberType: record.category,
-      });
-    } else {
-      setEditingMember(record);
-      setEditForm({
-        fullName: record.user,
-        mobile: record.mobile || "",
-        address: record.address || "",
-        registrationFee: record.shareAmount || 500,
-        newPassword: "",
-      });
-    }
-  };
-
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
-    if (!editingMember) return;
-    setSavingEdit(true);
-    try {
-      const { newPassword, ...memberFields } = editForm;
-      const saved = await updateMember(editingMember.id, memberFields);
-      if (!saved) throw new Error("Member was not found on the server.");
       
-      setRecords((prev) => prev.map((r) => (r.id === editingMember.id
-        ? { ...r, user: saved.fullName || r.user, mobile: saved.mobile || r.mobile, address: saved.address || r.address,
-            shareAmount: Number(memberFields.registrationFee) || r.shareAmount,
-            amount: `₹${Number(memberFields.registrationFee) || r.shareAmount}`, rawMember: saved }
-        : r)));
-      if (newPassword) {
-        if (newPassword.length < 8) throw new Error("Password must be at least 8 characters.");
-        await apiClient.put(`/api/members/${encodeURIComponent(editingMember.id)}/password`, { password: newPassword });
-      }
-      setEditingMember(null);
-      window.dispatchEvent(new Event("dataUpdated"));
-    } catch (err) {
-      alert("Failed to update member: " + (err.message || "Unknown error"));
-    } finally {
-      setSavingEdit(false);
+      // Passing raw details as-is so nothing gets overridden or lost
+      onEditMember({
+        ...raw,
+        id: record.id,
+        fullName: raw.fullName || record.user || "",
+        fatherName: raw.fatherName || "",
+        dob: raw.dob || "",
+        gender: raw.gender || "",
+        occupation: raw.occupation || "",
+        memberType: raw.memberType || record.category || "Standard",
+        year: raw.year || "2026",
+        mobile: raw.mobile || record.mobile || "",
+        email: raw.email || "",
+        nomineeName: raw.nomineeName || "",
+        nomineeRelation: raw.nomineeRelation || "",
+        nomineeMobile: raw.nomineeMobile || "",
+        
+        // Address fields
+        pincode: raw.pincode || "",
+        district: raw.district || "",
+        taluka: raw.taluka || "",
+        state: raw.state || "",
+        city: raw.city || "",
+        address: raw.address || record.address || "",
+        
+        // Witness 1 fields
+        witness1Name: raw.witness1Name || "",
+        witness1MemberNo: raw.witness1MemberNo || "",
+        witness1Phone: raw.witness1Phone || "",
+        witness1Email: raw.witness1Email || "",
+        witness1IdType: raw.witness1IdType || "Aadhaar Card",
+
+        // Witness 2 fields
+        witness2Name: raw.witness2Name || "",
+        witness2MemberNo: raw.witness2MemberNo || "",
+        witness2Phone: raw.witness2Phone || "",
+        witness2Email: raw.witness2Email || "",
+        witness2IdType: raw.witness2IdType || "Aadhaar Card",
+
+        // Payment / Financial fields
+        registrationFee: raw.registrationFee || record.shareAmount || 500,
+        paymentStatus: raw.paymentStatus || record.paymentStatus || "Complete",
+        paymentMode: raw.paymentMode || record.paymentMethod || "Cash",
+        destinationBank: raw.destinationBank || record.bank || "SBI (Current Account - 123456789)",
+        sourceBank: raw.sourceBank || share.sourceBank || "",
+        transactionId: raw.transactionId || share.referenceNumber || "",
+      });
     }
   };
 
@@ -172,6 +170,8 @@ export default function List({ onEditMember }) {
 
   const totalMonthly = filteredRecords.reduce((total, record) => total + (Number(record.monthlyAmount) || 0), 0);
   const totalYearly = totalMonthly * 12;
+
+  const rawM = selectedMember ? (selectedMember.rawMember || selectedMember) : null;
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
@@ -245,7 +245,7 @@ export default function List({ onEditMember }) {
         </div>
       </div>
 
-      {/* Summary Badges (Clean White Background Cards) */}
+      {/* Summary Badges */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
           <span className="text-slate-500 uppercase font-bold">Total Collected:</span>
@@ -296,7 +296,6 @@ export default function List({ onEditMember }) {
                   <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.shareAmount}</td>
                   <td className="py-3.5 px-3 font-bold text-slate-800">₹{record.monthlyAmount}</td>
                   
-                  {/* Clean text member status */}
                   <td className="py-3.5 px-3">
                     <span className={`font-bold text-xs uppercase tracking-wider ${
                       record.memberStatus === "Active" ? "text-teal-700" : "text-slate-500"
@@ -305,7 +304,6 @@ export default function List({ onEditMember }) {
                     </span>
                   </td>
 
-                  {/* Clean text payment status */}
                   <td className="py-3.5 px-3">
                     <span className={`font-bold text-xs uppercase tracking-wider ${
                       record.paymentStatus === "Complete" || record.paymentStatus === "Paid"
@@ -316,12 +314,13 @@ export default function List({ onEditMember }) {
                     </span>
                   </td>
 
+                  {/* Table Actions: Only View button */}
                   <td className="py-3.5 px-3 text-center">
                     <button
-                      onClick={(e) => handleEditClick(record, e)}
-                      className="px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md font-bold text-[11px] transition cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                      onClick={(e) => { e.stopPropagation(); setSelectedMember(record); }}
+                      className="px-3 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-md font-bold text-[11px] transition cursor-pointer"
                     >
-                      ✏️ Edit
+                      View
                     </button>
                   </td>
                 </tr>
@@ -337,148 +336,197 @@ export default function List({ onEditMember }) {
         </table>
       </div>
 
-      {/* Local Edit Modal */}
-      {editingMember && (
-        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-start pb-3 border-b border-slate-200">
-              <div>
-                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider">Member Management</span>
-                <h3 className="text-base font-bold text-[#102a43] mt-0.5">Edit Member Details</h3>
-              </div>
-              <button 
-                onClick={() => setEditingMember(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold grid place-items-center transition cursor-pointer text-xs"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Mobile Number</label>
-                <input
-                  type="text"
-                  value={editForm.mobile}
-                  onChange={(e) => setEditForm({ ...editForm, mobile: e.target.value })}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Address</label>
-                <input
-                  type="text"
-                  value={editForm.address}
-                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Set / Reset Login Password</label>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Leave empty to keep current (min 8 characters)"
-                  value={editForm.newPassword}
-                  onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Registration Fee (₹)</label>
-                <input
-                  type="number"
-                  value={editForm.registrationFee}
-                  onChange={(e) => setEditForm({ ...editForm, registrationFee: e.target.value })}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg outline-none focus:border-teal-600 bg-white"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setEditingMember(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingEdit}
-                  className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-lg cursor-pointer shadow-sm"
-                >
-                  {savingEdit ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Member Financial Ledger Modal */}
+      {/* Professional Member Profile Modal (Left Purple Sidebar Reference Style) */}
       {selectedMember && (
-        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
-          <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl border border-slate-200">
-            <div className="flex justify-between items-start pb-3 border-b border-slate-200 mb-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col lg:flex-row max-h-[90vh]">
+            
+            {/* Left Purple Sidebar */}
+            <div className="w-full lg:w-80 bg-[#5b51d8] text-white p-6 flex flex-col justify-between relative">
               <div>
-                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider">Member Financial Ledger</span>
-                <h3 className="text-base font-bold text-[#102a43] mt-0.5">{selectedMember.user}</h3>
+                <button 
+                  onClick={() => setSelectedMember(null)}
+                  className="text-white/80 hover:text-white font-bold text-sm mb-6 flex items-center gap-1 cursor-pointer"
+                >
+                  ← Back
+                </button>
+
+                <div className="flex flex-col items-center text-center mt-2">
+                  <div className="w-20 h-20 rounded-full bg-[#4a3fc0] border-2 border-white/30 flex items-center justify-center text-3xl font-black shadow-inner">
+                    👤
+                  </div>
+                  <h3 className="text-lg font-black mt-3">{selectedMember.user}</h3>
+                  <p className="text-white/80 text-xs mt-0.5">{rawM?.email || "member@example.com"}</p>
+                  <span className="text-[10px] font-mono bg-black/20 px-2 py-0.5 rounded mt-2">Member ID: MEM-{selectedMember.memberId}</span>
+                </div>
+
+                <div className="mt-6 text-center">
+                  <span className="inline-block px-3 py-1 bg-emerald-500 text-white text-[10px] font-extrabold rounded-full uppercase tracking-wider shadow-sm">
+                    {selectedMember.memberStatus}
+                  </span>
+                </div>
+
+                {/* Sidebar Navigation Tabs */}
+                <div className="mt-8 space-y-1.5">
+                  {[
+                    { id: "personal", label: "Personal information" },
+                    { id: "address", label: "Address information" },
+                    { id: "nominee", label: "Nominee details" },
+                    { id: "membership", label: "Membership" },
+                    { id: "documents", label: "Documents" },
+                    { id: "share", label: "Share history" }
+                  ].map((tab, idx) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-3 transition cursor-pointer ${
+                        activeTab === tab.id ? "bg-white text-[#5b51d8] shadow-md" : "text-white/80 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                        activeTab === tab.id ? "bg-[#5b51d8] text-white" : "bg-white/20 text-white"
+                      }`}>{idx + 1}</span>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button 
-                onClick={() => setSelectedMember(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold grid place-items-center transition cursor-pointer text-xs"
-              >
-                ✕
-              </button>
+
+              <div className="pt-6 border-t border-white/20 text-[10px] text-white/70 text-center">
+                Cooperative Banking &amp; Savings System
+              </div>
             </div>
 
-            <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs mb-4">
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Member ID:</span>
-                <span className="font-mono font-bold text-slate-800">MEM-{selectedMember.memberId}</span>
+            {/* Right Content Area */}
+            <div className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[#f8fafc]">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-200 mb-6">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Member Profile</span>
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">{selectedMember.category} · 2026</h4>
+                </div>
+                
+                {/* Modal Header Actions: Edit Profile & Close */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const rec = selectedMember;
+                      setSelectedMember(null);
+                      handleEditClick(rec);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  >
+                    ✏️ Edit Profile
+                  </button>
+                  <button 
+                    onClick={() => setSelectedMember(null)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Mobile:</span>
-                <span className="font-bold text-slate-800">{selectedMember.mobile || "N/A"}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Share Amount:</span>
-                <span className="font-bold text-teal-700">₹{selectedMember.shareAmount}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Monthly Amount:</span>
-                <span className="font-bold text-slate-800">₹{selectedMember.monthlyAmount}</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-slate-500">Category / Bank:</span>
-                <span className="font-bold text-slate-900">{selectedMember.category} ({selectedMember.bank})</span>
-              </div>
+
+              {/* Tab 1: Personal Information */}
+              {activeTab === "personal" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Personal information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Full Name</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{selectedMember.user}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Father / Spouse Name</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{rawM?.fatherName || "N/A"}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date of Birth</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{rawM?.dob || "N/A"}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gender</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{rawM?.gender || "Male"}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Occupation</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{rawM?.occupation || "Member"}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mobile</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{selectedMember.mobile || "N/A"}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs md:col-span-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{rawM?.email || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Address Information */}
+              {activeTab === "address" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Address information</h3>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Residential Address</span>
+                      <p className="text-sm font-black text-slate-800 mt-1">{selectedMember.address || "Pune, Maharashtra"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Nominee Details */}
+              {activeTab === "nominee" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Nominee details</h3>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+                    <p className="text-xs font-bold text-slate-600">Nominee Name: <span className="text-slate-900">{rawM?.nomineeName || "Not Provided"}</span></p>
+                    <p className="text-xs font-bold text-slate-600 mt-2">Relation: <span className="text-slate-900">{rawM?.nomineeRelation || "N/A"}</span></p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Membership */}
+              {activeTab === "membership" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Membership details</h3>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                    <p className="text-xs font-bold text-slate-600">Share Amount: <span className="text-teal-700 font-black">₹{selectedMember.shareAmount}</span></p>
+                    <p className="text-xs font-bold text-slate-600">Monthly Saving: <span className="text-slate-900 font-black">₹{selectedMember.monthlyAmount}</span></p>
+                    <p className="text-xs font-bold text-slate-600">Bank / Branch: <span className="text-slate-900 font-semibold">{selectedMember.bank}</span></p>
+                    <p className="text-xs font-bold text-slate-600">Joining Date: <span className="text-slate-900">{selectedMember.date}</span></p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 5: Documents */}
+              {activeTab === "documents" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Uploaded Documents</h3>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+                    <p className="text-xs font-bold text-slate-600">ID Proof &amp; Signature verified successfully.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 6: Share History */}
+              {activeTab === "share" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Share history</h3>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+                    <p className="text-xs font-bold text-slate-600">Payment Status: <span className="text-emerald-700 font-bold">{selectedMember.paymentStatus}</span></p>
+                    <p className="text-xs font-bold text-slate-600 mt-2">Payment Method: <span className="text-slate-900 font-bold">{selectedMember.paymentMethod}</span></p>
+                  </div>
+                </div>
+              )}
+
             </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setSelectedMember(null)}
-                className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-4 py-2 rounded-lg text-xs transition cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
 
-    </div>
+    </div>   
   );
 }

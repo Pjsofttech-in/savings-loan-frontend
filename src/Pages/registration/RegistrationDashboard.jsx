@@ -11,13 +11,14 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
     month: { count: 0, amount: 0 },
     year: { count: 0, amount: 0 },
     total: { count: 0, amount: 0 },
+    totalRevenue: 0,
+    paidRevenue: 0,
+    pendingRevenue: 0
   });
 
   const [selectedYear, setSelectedYear] = useState("2026");
   const [selectedMonth, setSelectedMonth] = useState("All");
-  const [viewMode, setViewMode] = useState("monthly"); // "monthly" or "yearly"
   const [monthlyTrend, setMonthlyTrend] = useState([]);
-  const [yearlyTrend, setYearlyTrend] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,50 +27,65 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
         const members = Array.isArray(res.data) ? res.data : [];
         const totalMem = members.length;
         
+        let totRev = 0;
+        let paidRev = 0;
+        let pendRev = 0;
+
+        const trendMap = MONTHS_LIST.map(m => ({ 
+          month: m, 
+          admissions: 0, 
+          total: 0, 
+          paid: 0, 
+          pending: 0 
+        }));
+
+        members.forEach(m => {
+          const dt = m.joiningDate || m.applicationDate || "2026-10-19";
+          const yr = dt.substring(0, 4);
+          const status = m.status || "Active";
+          const fee = Number(m.registrationFee || 500);
+
+          totRev += fee;
+          if (status === "Active") {
+            paidRev += fee;
+          } else {
+            pendRev += fee;
+          }
+
+          if (yr === selectedYear) {
+            const monthIdx = new Date(dt).getMonth();
+            if (!isNaN(monthIdx) && trendMap[monthIdx]) {
+              trendMap[monthIdx].admissions += 1;
+              trendMap[monthIdx].total += fee;
+              if (status === "Active") {
+                trendMap[monthIdx].paid += fee;
+              } else {
+                trendMap[monthIdx].pending += fee;
+              }
+            }
+          }
+        });
+
         setStats({
           today: { count: 1, amount: 500 },
           week: { count: Math.min(totalMem, 5), amount: Math.min(totalMem, 5) * 500 },
           month: { count: totalMem, amount: totalMem * 500 },
           year: { count: totalMem, amount: totalMem * 500 },
           total: { count: totalMem, amount: totalMem * 500 },
-        });
-
-        // 1. Monthly Trend for selectedYear
-        const trendMap = MONTHS_LIST.map(m => ({ month: m, count: 0, amount: 0 }));
-        
-        // 2. Yearly Trend mapping
-        const yearsMap = { "2025": { year: "2025", count: 0, amount: 0 }, "2026": { year: "2026", count: 0, amount: 0 } };
-
-        members.forEach(m => {
-          const dt = m.joiningDate || m.applicationDate || "2026-10-19";
-          const yr = dt.substring(0, 4);
-          
-          if (yr) {
-            if (!yearsMap[yr]) {
-              yearsMap[yr] = { year: yr, count: 0, amount: 0 };
-            }
-            yearsMap[yr].count++;
-            yearsMap[yr].amount += Number(m.registrationFee || 500);
-          }
-
-          if (yr === selectedYear) {
-            const monthIdx = new Date(dt).getMonth();
-            if (!isNaN(monthIdx) && trendMap[monthIdx]) {
-              trendMap[monthIdx].count++;
-              trendMap[monthIdx].amount += Number(m.registrationFee || 500);
-            }
-          }
+          totalRevenue: totRev,
+          paidRevenue: paidRev,
+          pendingRevenue: pendRev
         });
 
         setMonthlyTrend(trendMap);
-        setYearlyTrend(Object.values(yearsMap).sort((a, b) => a.year.localeCompare(b.year)));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedYear]);
 
-  const activeTrendData = viewMode === "monthly" ? monthlyTrend : yearlyTrend;
-  const maxCount = Math.max(...activeTrendData.map(d => d.count), 5);
+  // Max amount calculation with safe scaling
+  const rawMax = Math.max(...monthlyTrend.map(d => Math.max(d.total, d.paid, d.pending)), 5000);
+  const maxAmount = rawMax * 1.1;
 
   return (
     <div className="p-6 lg:p-8 bg-[#f4f6f8] min-h-full font-sans space-y-6">
@@ -113,85 +129,118 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
         </div>
       </div>
 
-      {/* Analytics Graph with Monthly & Yearly Switcher */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200">
+      {/* Admissions & Revenue Comparison Analytics Graph */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+        
+        {/* Header & Legends matching the requested style */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-slate-200">
           <div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Registration Analytics</span>
-              {/* View Mode Toggle Switcher */}
-              <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex text-[11px] font-bold">
-                <button
-                  onClick={() => setViewMode("monthly")}
-                  className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === "monthly" ? "bg-teal-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  Monthly View
-                </button>
-                <button
-                  onClick={() => setViewMode("yearly")}
-                  className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === "yearly" ? "bg-teal-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  Yearly View
-                </button>
-              </div>
-            </div>
+            <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Admissions &amp; Revenue Analytics</span>
             <h3 className="text-sm font-black text-[#102a43] uppercase tracking-wider mt-1">
-              {viewMode === "monthly" ? `Month-wise Breakdown (${selectedYear})` : "Multi-Year Registration Trend"}
+              Month-wise Comparison ({selectedYear})
             </h3>
           </div>
 
-          <div className="flex items-center gap-3">
-            {viewMode === "monthly" && (
-              <>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-                >
-                  <option value="All">All Months</option>
-                  {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+          {/* Reference Style Circular Legends */}
+          <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-slate-700">
+            <div className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-full bg-blue-500 inline-block shadow-2xs"></span> Admissions
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-full bg-amber-500 inline-block shadow-2xs"></span> Total Rev
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 inline-block shadow-2xs"></span> Paid Rev
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-full bg-red-500 inline-block shadow-2xs"></span> Pending Rev
+            </div>
+          </div>
 
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
-                >
-                  <option value="2025">2025</option>
-                  <option value="2026">2026</option>
-                </select>
-              </>
-            )}
+          <div className="flex items-center gap-3">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="All">All Months</option>
+              {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
           </div>
         </div>
 
-        {/* Dynamic Bar Chart Render */}
-        <div className="flex items-end justify-around h-64 pt-8 pb-6 px-4 overflow-x-auto gap-4">
-          {viewMode === "monthly" ? (
-            monthlyTrend.map((item) => {
-              const heightPct = maxCount > 0 ? Math.round((item.count / maxCount) * 100) : 0;
+        {/* Graph Container with Horizontal Grid Lines */}
+        <div className="relative h-72 w-full">
+          
+          {/* Background Horizontal Grid Lines */}
+          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+            <div className="border-b border-slate-100 w-full"></div>
+            <div className="border-b border-slate-100 w-full"></div>
+            <div className="border-b border-slate-100 w-full"></div>
+            <div className="border-b border-slate-100 w-full"></div>
+            <div className="border-b border-slate-200 w-full"></div>
+          </div>
+
+          {/* Bars Container */}
+          <div className="absolute inset-0 flex items-end justify-around px-2 pb-2 overflow-x-auto gap-2 z-10">
+            {monthlyTrend.map((item) => {
+              const admPct = Math.min(Math.round((item.admissions / 10) * 100), 100); // scaled for count
+              const totPct = maxAmount > 0 ? Math.round((item.total / maxAmount) * 100) : 0;
+              const paidPct = maxAmount > 0 ? Math.round((item.paid / maxAmount) * 100) : 0;
+              const pendPct = maxAmount > 0 ? Math.round((item.pending / maxAmount) * 100) : 0;
               const isSelected = selectedMonth === "All" || selectedMonth === item.month;
+
               return (
-                <div key={item.month} className={`flex flex-col items-center gap-2 h-full justify-end min-w-[50px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}>
-                  <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : ""}</span>
-                  <div className="w-8 bg-teal-600 rounded-t hover:bg-teal-700 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} title={`${item.month}: ${item.count} registrations (₹${item.amount})`} />
-                  <span className="text-[11px] font-bold text-slate-700 mt-1 whitespace-nowrap">{item.month.slice(0, 3)}</span>
+                <div 
+                  key={item.month} 
+                  className={`flex flex-col items-center justify-end h-full min-w-[70px] transition-opacity ${isSelected ? "opacity-100" : "opacity-30"}`}
+                >
+                  {/* Side-by-side comparison bars matching reference style */}
+                  <div className="flex items-end gap-1 h-56 w-full justify-center pb-1">
+                    {/* Admissions Bar (Blue) */}
+                    <div 
+                      className="w-2.5 bg-blue-500 rounded-t hover:bg-blue-600 transition-all shadow-xs" 
+                      style={{ height: `${Math.max(admPct, 8)}%` }} 
+                      title={`${item.month} - Admissions: ${item.admissions}`} 
+                    />
+                    {/* Total Revenue Bar (Amber) */}
+                    <div 
+                      className="w-2.5 bg-amber-500 rounded-t hover:bg-amber-600 transition-all shadow-xs" 
+                      style={{ height: `${Math.max(totPct, 8)}%` }} 
+                      title={`${item.month} - Total Revenue: ₹${item.total}`} 
+                    />
+                    {/* Paid Revenue Bar (Emerald) */}
+                    <div 
+                      className="w-2.5 bg-emerald-500 rounded-t hover:bg-emerald-600 transition-all shadow-xs" 
+                      style={{ height: `${Math.max(paidPct, 8)}%` }} 
+                      title={`${item.month} - Paid Revenue: ₹${item.paid}`} 
+                    />
+                    {/* Pending Revenue Bar (Red) */}
+                    <div 
+                      className="w-2.5 bg-red-500 rounded-t hover:bg-red-600 transition-all shadow-xs" 
+                      style={{ height: `${Math.max(pendPct, 8)}%` }} 
+                      title={`${item.month} - Pending Revenue: ₹${item.pending}`} 
+                    />
+                  </div>
+
+                  {/* Month Label */}
+                  <span className="text-[11px] font-bold text-slate-700 mt-2 whitespace-nowrap">{item.month.slice(0, 3)}</span>
                 </div>
               );
-            })
-          ) : (
-            yearlyTrend.map((item) => {
-              const heightPct = maxCount > 0 ? Math.round((item.count / maxCount) * 100) : 0;
-              return (
-                <div key={item.year} className="flex flex-col items-center gap-2 h-full justify-end min-w-[80px]">
-                  <span className="text-[11px] font-bold text-teal-700">{item.count > 0 ? item.count : "0"}</span>
-                  <div className="w-12 bg-teal-700 rounded-t hover:bg-teal-800 transition-all duration-300 shadow-sm" style={{ height: `${Math.max(heightPct, 8)}%` }} title={`Year ${item.year}: ${item.count} registrations (₹${item.amount})`} />
-                  <span className="text-xs font-bold text-slate-800 mt-1">{item.year}</span>
-                </div>
-              );
-            })
-          )}
+            })}
+          </div>
+
         </div>
+
       </div>
 
       {/* Onboarding Control */}
