@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
 import apiClient from "../../services/apiClient";
+import { getRegistrationSettings } from "../../services/settingsService";
 
 const titleCase = (value) => typeof value === "string"
   ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
@@ -44,12 +45,20 @@ export default function List({ onEditMember }) {
 
     return membersList.map((member) => {
       const share = sharesByMemberId.get(String(member.id)) || {};
-      const hasAmount = share.paymentAmount !== undefined && share.paymentAmount !== null;
-      const shareAmount = hasAmount ? Number(share.paymentAmount) : Number(member.registrationFee) || 500;
-      const monthlyAmount = Number(share.monthlySaving || share.monthlyFee || member.monthlyFee) || 1000;
+      const settings = getRegistrationSettings();
+      const memberCategory = share.shareType || member.memberType || "General";
+      const feeStructure = (settings.memberTypesWithFee || []).find(
+        (type) => String(type.name).toLowerCase() === String(memberCategory).toLowerCase(),
+      );
+      const shareAmount = feeStructure
+        ? Number(feeStructure.regFee) || 0
+        : Number(member.registrationFee ?? share.faceValue ?? share.paymentAmount) || 500;
+      const monthlyAmount = feeStructure
+        ? Number(feeStructure.monthlyFee) || 0
+        : Number(member.monthlyFee ?? share.monthlySaving) || 0;
       const status = share.paymentStatus || member.paymentStatus || "Complete";
       const memberStatus = member.status || "Active";
-      const category = share.shareType || member.memberType || "Standard";
+      const category = memberCategory;
       const bank = share.destinationBank || member.destinationBank || "SBI";
 
       return {
