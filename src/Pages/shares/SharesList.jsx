@@ -44,7 +44,8 @@ export default function ShareList({ onStartShares }) {
 
         let runningTotal = 0;
         const dynamicShares = rawShares.map(share => {
-          const matchedMember = membersList.find(m => m.id === share.memberId || m.id === share.member_id);
+          const shareMemberId = share.memberId ?? share.member_id ?? share.member?.id;
+          const matchedMember = membersList.find(m => String(m.id) === String(shareMemberId));
           const qty = Number(share.numberOfShares || share.quantity) || 1;
           const start = runningTotal + 1;
           const end = start + qty - 1;
@@ -73,7 +74,14 @@ export default function ShareList({ onStartShares }) {
   }, [yearFilter, statusFilter, modeFilter, dueDateFilter]);
 
   useEffect(() => {
-    
+    fetchSharesAndMembers();
+    const refreshShares = () => fetchSharesAndMembers();
+    window.addEventListener("dataUpdated", refreshShares);
+    window.addEventListener("membersDeleted", refreshShares);
+    return () => {
+      window.removeEventListener("dataUpdated", refreshShares);
+      window.removeEventListener("membersDeleted", refreshShares);
+    };
   }, [fetchSharesAndMembers]);
 
   // Client-side & Filter dropdown filtering
