@@ -30,10 +30,26 @@ export function getRegistrationSettings() {
 export function saveRegistrationSettings(settings) {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    apiClient.put("/api/settings", { value: JSON.stringify(settings) }).catch(() => {});
     return settings;
   } catch {
     return settings;
   }
+}
+
+export async function hydrateRegistrationSettings() {
+  try {
+    const { data } = await apiClient.get("/api/settings");
+    if (data?.value) {
+      const serverSettings = JSON.parse(data.value);
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(serverSettings));
+      window.dispatchEvent(new Event("settingsUpdated"));
+      return serverSettings;
+    }
+  } catch {
+    // Local settings remain available when the API is temporarily unavailable.
+  }
+  return getRegistrationSettings();
 }
 
 // Complete backend sync function for fee & full settings update

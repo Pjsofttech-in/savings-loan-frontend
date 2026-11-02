@@ -72,43 +72,36 @@ export default function MonthlySavingList({ onStartSaving }) {
   }, [filteredSavings, currentPage, entriesPerPage]);
 
   return (
-    <div className="max-w-[1400px] mx-auto font-sans space-y-6">
+    <div className="max-w-[1400px] mx-auto font-sans space-y-3">
       
-      {/* Header Bar */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Savings Records Directory</span>
-          <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Monthly Saving Table</h1>
-          <p className="text-xs text-slate-500 mt-1 m-0">Live searchable ledger of registered member savings with due amount calculators.</p>
-        </div>
-        {onStartSaving && (
-          <button
-            onClick={onStartSaving}
-            className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-sm cursor-pointer"
-          >
-            + Register New Saving
-          </button>
-        )}
-      </div>
-
       {/* Filters & Summary Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters</h3>
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setYearFilter("All");
-                setMonthFilter("All");
-                setStatusFilter("All");
-                setModeFilter("All");
-                setCurrentPage(1);
-              }}
-              className="text-xs font-bold text-slate-600 hover:text-teal-700 underline cursor-pointer"
-            >
-              Reset Filters
-            </button>
+            <div className="flex items-center gap-2">
+              {onStartSaving && (
+                <button
+                  onClick={onStartSaving}
+                  className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm cursor-pointer"
+                >
+                  + Register New Saving
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setYearFilter("All");
+                  setMonthFilter("All");
+                  setStatusFilter("All");
+                  setModeFilter("All");
+                  setCurrentPage(1);
+                }}
+                className="text-xs font-bold text-slate-600 hover:text-teal-700 underline cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            </div>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -125,7 +118,7 @@ export default function MonthlySavingList({ onStartSaving }) {
               onChange={(e) => { setYearFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
             >
-              <option value="All">All Years</option>
+              <option value="All">Years</option>
               <option value="2026">2026</option>
               <option value="2025">2025</option>
               <option value="2024">2024</option>
@@ -136,7 +129,7 @@ export default function MonthlySavingList({ onStartSaving }) {
               onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
             >
-              <option value="All">All Months</option>
+              <option value="All">Months</option>
               {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
 
@@ -145,7 +138,7 @@ export default function MonthlySavingList({ onStartSaving }) {
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
             >
-              <option value="All">All Statuses</option>
+              <option value="All">Statuses</option>
               <option value="Paid">Paid</option>
               <option value="Complete">Complete</option>
               <option value="Installment">Installment</option>
@@ -157,7 +150,7 @@ export default function MonthlySavingList({ onStartSaving }) {
               onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
             >
-              <option value="All">All Payment Modes</option>
+              <option value="All">Payment Modes</option>
               {PAYMENT_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
             </select>
           </div>

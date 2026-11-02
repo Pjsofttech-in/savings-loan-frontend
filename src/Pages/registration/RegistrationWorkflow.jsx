@@ -15,12 +15,7 @@ export default function RegistrationWorkflow() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
       {/* Slide Navigation Header Bar */}
-      <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-30">
-        <div>
-          <span className="text-xs font-bold text-teal-700 tracking-wider uppercase">Private Members Group</span>
-          <h1 className="text-[#102a43] text-lg font-extrabold m-0">Savings &amp; Loan Management System</h1>
-        </div>
-
+      <header className="bg-white border-b border-slate-200 px-8 py-2 flex items-center justify-end shadow-sm sticky top-0 z-30">
         {/* Slide Switcher Controls */}
         <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
           {slides.map((slide, index) => (
@@ -40,7 +35,7 @@ export default function RegistrationWorkflow() {
       </header>
 
       {/* Main Container for Active Slide */}
-      <main className="flex-1 max-w-[1400px] w-full mx-auto p-6 lg:p-8">
+      <main className="flex-1 max-w-[1400px] w-full mx-auto p-3 lg:p-4">
         
         {/* SLIDE 1: Registration Dashboard */}
         {currentSlide === 0 && (

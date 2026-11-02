@@ -109,7 +109,7 @@ export default function MonthlySavingDashboard({ onStartSaving, onShowList }) {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none"
               >
-                <option value="All">All Months</option>
+                <option value="All">Months</option>
                 {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>

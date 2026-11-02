@@ -2,7 +2,7 @@
 import { FormField, SelectField, FormSection } from "./RegistrationFields";
 import { completeMemberRegistration } from "../../services/paymentService";
 import { updateMember } from "../../services/memberService";
-import { getRegistrationSettings } from "../../services/settingsService";
+import { getRegistrationSettings, hydrateRegistrationSettings } from "../../services/settingsService";
 
 const OCCUPATIONS = [
   "Farmer", "Student", "Unemployed", "Business Man", "Govt. Employee", "Private Employee"
@@ -101,6 +101,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
   });
 
   useEffect(() => {
+    hydrateRegistrationSettings();
     const handleSettingsUpdate = () => {
       const s = getRegistrationSettings();
       setRegistrationSettings(s);
@@ -174,7 +175,9 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     if (!form.witness2.witnessName) newErrors.witness2Name = "Witness 2 required.";
     if (!form.witness2.witnessMemberNo) newErrors.witness2MemberNo = "Witness 2 ID required.";
 
-    if (!form.personal.destinationBank) newErrors.destinationBank = "Receiving bank required.";
+    if (form.personal.paymentStatus !== "Pending" && !form.personal.destinationBank) {
+      newErrors.destinationBank = "Receiving bank required.";
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -186,8 +189,10 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
 
     try {
       if (editingMember) {
+        const isPending = form.personal.paymentStatus === "Pending";
         const updatePayload = {
           ...form.personal,
+          ...(isPending ? { paymentMode: "", destinationBank: "" } : {}),
           ...form.address,
           witnessName: form.witness1.witnessName,
           witnessMemberNo: form.witness1.witnessMemberNo,
@@ -206,7 +211,16 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
         if (onSuccess) onSuccess();
       } else {
         const formData = new FormData();
-        Object.entries(form.personal).forEach(([key, val]) => formData.append(key, val));
+        const isPending = form.personal.paymentStatus === "Pending";
+        Object.entries(form.personal).forEach(([key, val]) => {
+          if (!(isPending && (key === "paymentMode" || key === "destinationBank"))) {
+            formData.append(key, val);
+          }
+        });
+        if (isPending) {
+          formData.append("paymentMode", "");
+          formData.append("destinationBank", "");
+        }
         Object.entries(form.address).forEach(([key, val]) => formData.append(key, val));
         
         Object.entries(form.witness1).forEach(([key, val]) => formData.append(key, val));
@@ -216,7 +230,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
         formData.append("monthlyFee", monthlyContribution);
         formData.append("documentType", documentType);
         formData.append("joiningDate", new Date().toISOString().slice(0, 10));
-        formData.append("destinationBank", form.personal.destinationBank);
+        if (!isPending) formData.append("destinationBank", form.personal.destinationBank);
         formData.append("sourceBank", form.personal.sourceBank);
 
         if (documentFile) formData.append("document", documentFile);
@@ -384,7 +398,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
               <span className="text-[10px] font-bold text-slate-500">Linked to Settings</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${form.personal.paymentStatus === "Pending" ? "md:grid-cols-2" : "md:grid-cols-4"}`}>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-col justify-center">
                 <span className="text-[9px] font-bold text-blue-700 uppercase">Registration Fee</span>
                 <span className="text-sm font-extrabold text-blue-900">₹{adminRegistrationFee}</span>
@@ -404,37 +418,41 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
                 </select>
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">3. Payment Mode *</label>
-                <select
-                  value={form.personal.paymentMode}
-                  onChange={(e) => updateField("personal", "paymentMode", e.target.value)}
-                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
-                  required
-                >
-                  {PAYMENT_MODES.map((mode, idx) => (
-                    <option key={idx} value={mode}>{mode}</option>
-                  ))}
-                </select>
-              </div>
+              {form.personal.paymentStatus !== "Pending" && (
+                <>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">3. Payment Mode *</label>
+                    <select
+                      value={form.personal.paymentMode}
+                      onChange={(e) => updateField("personal", "paymentMode", e.target.value)}
+                      className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                      required
+                    >
+                      {PAYMENT_MODES.map((mode, idx) => (
+                        <option key={idx} value={mode}>{mode}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">4. Receiver Bank *</label>
-                <select
-                  value={form.personal.destinationBank}
-                  onChange={(e) => updateField("personal", "destinationBank", e.target.value)}
-                  className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
-                  required
-                >
-                  <option value="">-- Choose Bank --</option>
-                  {bankAccounts.map((acc, idx) => (
-                    <option key={acc.id || idx} value={acc.bankName || acc}>
-                      {acc.bankName ? `${acc.bankName} (${acc.accountType || "Account"} - ${acc.accountNumber})` : acc}
-                    </option>
-                  ))}
-                </select>
-                {errors.destinationBank && <p className="text-red-500 text-[10px] mt-0.5">{errors.destinationBank}</p>}
-              </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">4. Receiver Bank *</label>
+                    <select
+                      value={form.personal.destinationBank}
+                      onChange={(e) => updateField("personal", "destinationBank", e.target.value)}
+                      className="w-full h-9 px-2 border border-slate-300 rounded text-xs outline-none focus:border-teal-600 bg-white font-bold text-slate-800"
+                      required
+                    >
+                      <option value="">-- Choose Bank --</option>
+                      {bankAccounts.map((acc, idx) => (
+                        <option key={acc.id || idx} value={acc.bankName || acc}>
+                          {acc.bankName ? `${acc.bankName} (${acc.accountType || "Account"} - ${acc.accountNumber})` : acc}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.destinationBank && <p className="text-red-500 text-[10px] mt-0.5">{errors.destinationBank}</p>}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">

@@ -2,6 +2,11 @@
 import { useState, useEffect, useRef } from "react";
 import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
+import apiClient from "../../services/apiClient";
+
+const titleCase = (value) => typeof value === "string"
+  ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+  : value;
 
 export default function List({ onEditMember }) {
   const [records, setRecords] = useState([]);
@@ -11,6 +16,10 @@ export default function List({ onEditMember }) {
   // Selected Member for Full Profile Modal
   const [selectedMember, setSelectedMember] = useState(null);
   const [activeTab, setActiveTab] = useState("personal");
+  const [profileSavings, setProfileSavings] = useState([]);
+  const [profileShares, setProfileShares] = useState([]);
+  const [profileLoans, setProfileLoans] = useState([]);
+  const [profileDocumentUrl, setProfileDocumentUrl] = useState("");
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -27,8 +36,9 @@ export default function List({ onEditMember }) {
 
     const sharesByMemberId = new Map();
     sharesList.forEach((share) => {
-      if (share && share.memberId && !sharesByMemberId.has(String(share.memberId))) {
-        sharesByMemberId.set(String(share.memberId), share);
+      const memberId = share?.memberId ?? share?.member?.id;
+      if (memberId !== undefined && memberId !== null && !sharesByMemberId.has(String(memberId))) {
+        sharesByMemberId.set(String(memberId), share);
       }
     });
 
@@ -47,7 +57,10 @@ export default function List({ onEditMember }) {
         user: member.fullName || member.user || "Member",
         memberId: member.id || "-",
         shareAmount,
+        memberFee: shareAmount,
         monthlyAmount,
+        monthlyFee: monthlyAmount,
+        totalSaving: shareAmount + monthlyAmount,
         mobile: member.mobile || "",
         address: member.address || member.street || "",
         category,
@@ -93,6 +106,52 @@ export default function List({ onEditMember }) {
       window.removeEventListener("dataUpdated", loadData);
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedMember) return undefined;
+
+    let isMounted = true;
+    let documentUrl = "";
+
+    Promise.resolve().then(() => {
+      if (!isMounted) return;
+      setProfileSavings([]);
+      setProfileShares([]);
+      setProfileLoans([]);
+      setProfileDocumentUrl("");
+    });
+
+    Promise.all([
+      apiClient.get(`/api/savings?memberId=${selectedMember.id}`).catch(() => ({ data: [] })),
+      apiClient.get(`/api/shares?memberId=${selectedMember.id}`).catch(() => ({ data: [] })),
+      apiClient.get(`/api/loans?memberId=${selectedMember.id}`).catch(() => ({ data: [] })),
+    ]).then(([savingsResponse, sharesResponse, loansResponse]) => {
+      if (!isMounted) return;
+      const savings = Array.isArray(savingsResponse.data) ? savingsResponse.data : [];
+      const shares = Array.isArray(sharesResponse.data) ? sharesResponse.data : [];
+      const loans = Array.isArray(loansResponse.data) ? loansResponse.data : [];
+      const memberId = String(selectedMember.id);
+      const belongsToMember = (item) => String(item.memberId ?? item.member?.id ?? "") === memberId;
+      setProfileSavings(savings.filter(belongsToMember));
+      setProfileShares(shares.filter(belongsToMember));
+      setProfileLoans(loans.filter(belongsToMember));
+    });
+
+    apiClient.get(`/api/members/${selectedMember.id}/document`, { responseType: "blob" })
+      .then((response) => {
+        if (!isMounted) return;
+        documentUrl = URL.createObjectURL(response.data);
+        setProfileDocumentUrl(documentUrl);
+      })
+      .catch(() => {
+        if (isMounted) setProfileDocumentUrl("");
+      });
+
+    return () => {
+      isMounted = false;
+      if (documentUrl) URL.revokeObjectURL(documentUrl);
+    };
+  }, [selectedMember]);
 
   const handleEditClick = (record) => {
     if (typeof onEditMember === "function") {
@@ -202,7 +261,7 @@ export default function List({ onEditMember }) {
             onChange={(e) => setFilterCategory(e.target.value)}
             className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
           >
-            <option value="All">All Categories</option>
+            <option value="All">Categories</option>
             <option value="Standard">Standard</option>
             <option value="Lifetime">Lifetime</option>
             <option value="Founder">Founder</option>
@@ -214,7 +273,7 @@ export default function List({ onEditMember }) {
             onChange={(e) => setFilterBank(e.target.value)}
             className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
           >
-            <option value="All">All Banks</option>
+            <option value="All">Banks</option>
             <option value="SBI">SBI</option>
             <option value="HDFC Bank">HDFC Bank</option>
             <option value="ICICI Bank">ICICI Bank</option>
@@ -226,7 +285,7 @@ export default function List({ onEditMember }) {
             onChange={(e) => setFilterPaymentStatus(e.target.value)}
             className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
           >
-            <option value="All">All Payment Statuses</option>
+            <option value="All">Payment Statuses</option>
             <option value="Complete">Complete</option>
             <option value="Pending">Pending</option>
             <option value="Failed">Failed</option>
@@ -238,7 +297,7 @@ export default function List({ onEditMember }) {
             onChange={(e) => setFilterMemberStatus(e.target.value)}
             className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
           >
-            <option value="All">All Member Statuses</option>
+            <option value="All">Member Statuses</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
@@ -274,8 +333,9 @@ export default function List({ onEditMember }) {
               <th className="py-3 px-3 border-r border-slate-200 font-bold">User Name</th>
               <th className="py-3 px-3 border-r border-slate-200 font-bold">Category</th>
               <th className="py-3 px-3 border-r border-slate-200 font-bold">Bank</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Share Amount</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Monthly Amount</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Member Fee</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Monthly Fee</th>
+              <th className="py-3 px-3 border-r border-slate-200 font-bold">Total Saving</th>
               <th className="py-3 px-3 border-r border-slate-200 font-bold">Member Status</th>
               <th className="py-3 px-3 border-r border-slate-200 font-bold">Payment Status</th>
               <th className="py-3 px-3 font-bold text-center">Actions</th>
@@ -290,17 +350,18 @@ export default function List({ onEditMember }) {
                   className={`hover:bg-slate-50 cursor-pointer transition ${index % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
                 >
                   <td className="py-3.5 px-3 font-mono font-bold text-slate-600">MEM-{record.memberId}</td>
-                  <td className="py-3.5 px-3 font-bold text-[#102a43]">{record.user}</td>
-                  <td className="py-3.5 px-3 text-slate-600 font-medium">{record.category}</td>
-                  <td className="py-3.5 px-3 font-semibold text-slate-700">{record.bank}</td>
-                  <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.shareAmount}</td>
-                  <td className="py-3.5 px-3 font-bold text-slate-800">₹{record.monthlyAmount}</td>
+                  <td className="py-3.5 px-3 font-bold text-[#102a43]">{titleCase(record.user)}</td>
+                  <td className="py-3.5 px-3 text-slate-600 font-medium">{titleCase(record.category)}</td>
+                  <td className="py-3.5 px-3 font-semibold text-slate-700">{titleCase(record.bank)}</td>
+                  <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.memberFee}</td>
+                  <td className="py-3.5 px-3 font-bold text-slate-800">₹{record.monthlyFee}</td>
+                  <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.totalSaving}</td>
                   
                   <td className="py-3.5 px-3">
                     <span className={`font-bold text-xs uppercase tracking-wider ${
                       record.memberStatus === "Active" ? "text-teal-700" : "text-slate-500"
                     }`}>
-                      {record.memberStatus}
+                      {titleCase(record.memberStatus)}
                     </span>
                   </td>
 
@@ -310,7 +371,7 @@ export default function List({ onEditMember }) {
                         ? "text-emerald-700"
                         : "text-amber-600"
                     }`}>
-                      {record.paymentStatus}
+                      {titleCase(record.paymentStatus)}
                     </span>
                   </td>
 
@@ -327,7 +388,7 @@ export default function List({ onEditMember }) {
               ))
             ) : (
               <tr>
-                <td colSpan="9" className="py-10 text-center text-slate-400 font-medium">
+                <td colSpan="10" className="py-10 text-center text-slate-400 font-medium">
                   {loadingRecords ? "Loading member records..." : recordsError || "No member records found matching your filters."}
                 </td>
               </tr>
@@ -374,7 +435,9 @@ export default function List({ onEditMember }) {
                     { id: "nominee", label: "Nominee details" },
                     { id: "membership", label: "Membership" },
                     { id: "documents", label: "Documents" },
-                    { id: "share", label: "Share history" }
+                    { id: "savings", label: "Monthly saving" },
+                    { id: "share", label: "Share allocation" },
+                    { id: "loan", label: "Loan" }
                   ].map((tab, idx) => (
                     <button
                       key={tab.id}
@@ -503,21 +566,60 @@ export default function List({ onEditMember }) {
               {/* Tab 5: Documents */}
               {activeTab === "documents" && (
                 <div className="space-y-4">
-                  <h3 className="text-base font-black text-[#5b51d8]">Uploaded Documents</h3>
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
-                    <p className="text-xs font-bold text-slate-600">ID Proof &amp; Signature verified successfully.</p>
-                  </div>
+                  <h3 className="text-base font-black text-[#5b51d8]">Uploaded documents</h3>
+                  {profileDocumentUrl ? (
+                    <div className="space-y-3">
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-3">
+                        <span className="text-xs font-bold text-slate-700">{rawM?.documentType || "Member ID Proof"}</span>
+                        <button type="button" onClick={() => window.open(profileDocumentUrl, "_blank", "noopener,noreferrer")} className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold">Preview document</button>
+                      </div>
+                      <iframe src={profileDocumentUrl} title="Member document preview" className="w-full h-[520px] rounded-xl border border-slate-200 bg-white" />
+                    </div>
+                  ) : (
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs text-xs font-bold text-slate-600">No uploaded document available.</div>
+                  )}
                 </div>
               )}
 
-              {/* Tab 6: Share History */}
+              {/* Tab 6: Monthly Savings */}
+              {activeTab === "savings" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Monthly saving</h3>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead className="bg-slate-100 text-slate-700"><tr><th className="p-3">Date</th><th className="p-3">Month</th><th className="p-3">Amount</th><th className="p-3">Status</th></tr></thead>
+                      <tbody>{profileSavings.map((saving) => <tr key={saving.id} className="border-t border-slate-200"><td className="p-3">{saving.date || saving.createdAt || "-"}</td><td className="p-3">{saving.month || "-"}</td><td className="p-3 font-bold">₹{Number(saving.amountMonthly || saving.amount || 0).toLocaleString("en-IN")}</td><td className="p-3">{saving.status || saving.paymentStatus || "-"}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                  {!profileSavings.length && <p className="text-xs text-slate-500">No monthly savings found.</p>}
+                </div>
+              )}
+
+              {/* Tab 7: Share Allocation */}
               {activeTab === "share" && (
                 <div className="space-y-4">
-                  <h3 className="text-base font-black text-[#5b51d8]">Share history</h3>
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
-                    <p className="text-xs font-bold text-slate-600">Payment Status: <span className="text-emerald-700 font-bold">{selectedMember.paymentStatus}</span></p>
-                    <p className="text-xs font-bold text-slate-600 mt-2">Payment Method: <span className="text-slate-900 font-bold">{selectedMember.paymentMethod}</span></p>
+                  <h3 className="text-base font-black text-[#5b51d8]">Share allocation</h3>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead className="bg-slate-100 text-slate-700"><tr><th className="p-3">Date</th><th className="p-3">Share No</th><th className="p-3">No. of Share</th><th className="p-3">Amount</th><th className="p-3">Total Amount</th></tr></thead>
+                      <tbody>{profileShares.map((share) => { const quantity = Number(share.numberOfShares || share.quantity || 0); const amount = Number(share.paymentAmount || share.faceValue || 0); return <tr key={share.id} className="border-t border-slate-200"><td className="p-3">{share.applicationDate || share.date || share.joiningDate || "-"}</td><td className="p-3">{share.shareRange || share.startShareNo || "-"}</td><td className="p-3">{quantity}</td><td className="p-3">₹{amount.toLocaleString("en-IN")}</td><td className="p-3 font-bold">₹{(amount * quantity).toLocaleString("en-IN")}</td></tr>; })}</tbody>
+                    </table>
                   </div>
+                  {!profileShares.length && <p className="text-xs text-slate-500">No share allocation found.</p>}
+                </div>
+              )}
+
+              {/* Tab 8: Loans */}
+              {activeTab === "loan" && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-black text-[#5b51d8]">Loan</h3>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead className="bg-slate-100 text-slate-700"><tr><th className="p-3">Date</th><th className="p-3">Loan No</th><th className="p-3">Amount</th><th className="p-3">Status</th></tr></thead>
+                      <tbody>{profileLoans.map((loan) => <tr key={loan.id} className="border-t border-slate-200"><td className="p-3">{loan.applicationDate || loan.date || "-"}</td><td className="p-3">{loan.loanNo || loan.id || "-"}</td><td className="p-3 font-bold">₹{Number(loan.amount || loan.loanAmount || 0).toLocaleString("en-IN")}</td><td className="p-3">{loan.status || "-"}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                  {!profileLoans.length && <p className="text-xs text-slate-500">No loan records found.</p>}
                 </div>
               )}
 

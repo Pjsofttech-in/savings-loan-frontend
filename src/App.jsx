@@ -1,5 +1,6 @@
 ﻿// src/App.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toSentenceCase } from "./utils/formHelpers";
 import "./App.css";
 import "./banking.css";
 import Navbar from "./Components/navbar";
@@ -28,6 +29,24 @@ function App() {
   
   // Member Edit State
   const [editingMember, setEditingMember] = useState(null);
+
+  useEffect(() => {
+    const formatTextInput = (event) => {
+      const field = event.target;
+      if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
+      if (field instanceof HTMLInputElement && !["text", "search"].includes(field.type)) return;
+
+      const formattedValue = toSentenceCase(field.value);
+      if (formattedValue !== field.value) {
+        const valueSetter = Object.getOwnPropertyDescriptor(field.constructor.prototype, "value")?.set;
+        valueSetter?.call(field, formattedValue);
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    };
+
+    document.addEventListener("input", formatTextInput, true);
+    return () => document.removeEventListener("input", formatTextInput, true);
+  }, []);
 
   return (
     <div className="app-shell min-h-screen bg-[#eef2ef]">

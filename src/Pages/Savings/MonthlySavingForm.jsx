@@ -56,12 +56,7 @@ export default function MonthlySavingForm() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto font-sans">
-      <div className="mb-6 pb-4 border-b border-slate-200">
-        <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Savings &amp; Contributions</span>
-        <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Monthly Saving Registration Form</h1>
-      </div>
-
+    <div className="max-w-[1400px] mx-auto font-sans space-y-3">
       {isSubmitted && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm font-bold flex items-center justify-between">
           <span>✓ Monthly saving registered successfully. Reference ID: {savingId}</span>

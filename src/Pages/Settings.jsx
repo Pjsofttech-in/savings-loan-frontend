@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import {
   getRegistrationSettings,
   saveRegistrationSettings,
+  hydrateRegistrationSettings,
 } from "../services/settingsService";
-import { fetchMembers } from "../services/memberService";
+import { deleteMember, fetchMembers } from "../services/memberService";
 
 const catalogs = [
   { key: "memberTypes", title: "Member Types", singular: "Member Type", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0M19 8v6m3-3h-6" },
@@ -119,6 +120,12 @@ export default function Settings() {
     : [];
 
   useEffect(() => {
+    hydrateRegistrationSettings().then((serverSettings) => {
+      setSettings(serverSettings);
+      const types = serverSettings.memberTypesWithFee;
+      if (Array.isArray(types)) setMemberTypesWithFee(types);
+      if (Array.isArray(serverSettings.bankAccounts)) setBankAccounts(serverSettings.bankAccounts);
+    });
     fetchMembers()
       .then(setMembers)
       .catch((error) => setMessage(error.message))
@@ -177,6 +184,21 @@ export default function Settings() {
   const removeMemberType = (id) => {
     const updated = memberTypesWithFee.filter(t => t.id !== id);
     saveMemberTypesSettings(updated);
+  };
+
+  const handleDeleteMember = async (member) => {
+    const memberName = member.fullName || `Member ${member.id}`;
+    if (!window.confirm(`Delete ${memberName} and all related records?`)) return;
+
+    try {
+      await deleteMember(member.id);
+      setMembers((currentMembers) => currentMembers.filter((item) => item.id !== member.id));
+      setMessage(`${memberName} and related records deleted successfully.`);
+      window.dispatchEvent(new Event("dataUpdated"));
+      window.dispatchEvent(new Event("membersDeleted"));
+    } catch (error) {
+      setMessage(error.response?.data?.message || error.message || "Could not delete member.");
+    }
   };
 
   const updateCatalog = (key, nextOptions) => {
@@ -250,11 +272,7 @@ export default function Settings() {
   };
 
   return (
-    <main className="max-w-[1400px] mx-auto p-6 lg:p-8 font-sans">
-      <header className="mb-5">
-        <h1 className="text-2xl font-extrabold text-[#102a43] m-0">Settings</h1>
-      </header>
-
+    <main className="max-w-[1400px] mx-auto p-4 lg:p-6 font-sans">
       <div className={`settings-workspace ${menuExpanded ? "settings-menu-expanded" : ""}`}>
         <aside className="settings-category-menu" aria-label="Settings categories">
           <button
@@ -643,20 +661,21 @@ export default function Settings() {
 
               <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <div className="min-w-[560px]">
-                  <div className={`grid ${isMemberList ? "grid-cols-[90px_minmax(180px,1fr)_minmax(180px,1fr)_150px]" : "grid-cols-[110px_minmax(0,1fr)_180px]"} items-center bg-[#6495ed] text-white text-sm font-bold text-center`}>
+                  <div className={`grid ${isMemberList ? "grid-cols-[90px_minmax(180px,1fr)_minmax(180px,1fr)_150px_120px]" : "grid-cols-[110px_minmax(0,1fr)_180px]"} items-center bg-[#6495ed] text-white text-sm font-bold text-center`}>
                     <div className="px-4 py-3 border-r border-white/70">{isMemberList ? "User ID" : "ID"}</div>
                     <div className="px-4 py-3 border-r border-white/70">{isMemberList ? "Member Name" : activeCatalog.singular}</div>
                     {isMemberList ? (
                       <>
                         <div className="px-4 py-3 border-r border-white/70">Email</div>
-                        <div className="px-4 py-3">Mobile</div>
+                        <div className="px-4 py-3 border-r border-white/70">Mobile</div>
+                        <div className="px-4 py-3">Actions</div>
                       </>
                     ) : <div className="px-4 py-3">Actions</div>}
                   </div>
                   {filteredOptions.map((option, index) => (
                     <div
                       key={isMemberList ? option.id : option}
-                      className={`grid ${isMemberList ? "grid-cols-[90px_minmax(180px,1fr)_minmax(180px,1fr)_150px]" : "grid-cols-[110px_minmax(0,1fr)_180px]"} min-h-[62px] items-center text-center text-sm text-slate-900 ${index % 2 === 0 ? "bg-[#f7f7f7]" : "bg-white"}`}
+                      className={`grid ${isMemberList ? "grid-cols-[90px_minmax(180px,1fr)_minmax(180px,1fr)_150px_120px]" : "grid-cols-[110px_minmax(0,1fr)_180px]"} min-h-[62px] items-center text-center text-sm text-slate-900 ${index % 2 === 0 ? "bg-[#f7f7f7]" : "bg-white"}`}
                     >
                       {isMemberList ? (
                         <>
@@ -664,6 +683,16 @@ export default function Settings() {
                           <div className="px-4 py-3">{option.fullName || "-"}</div>
                           <div className="px-4 py-3">{option.email || "-"}</div>
                           <div className="px-4 py-3">{option.mobile || "-"}</div>
+                          <div className="px-4 py-2">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMember(option)}
+                              className="h-9 px-3 rounded-md bg-[#dc2f2f] hover:bg-[#c92525] text-white text-xs font-semibold shadow-sm transition"
+                              aria-label={`Delete ${option.fullName || option.id}`}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </>
                       ) : (
                         <>

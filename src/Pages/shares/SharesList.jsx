@@ -105,7 +105,7 @@ export default function ShareList({ onStartShares }) {
   }, [filteredShares, currentPage, entriesPerPage]);
 
   return (
-    <div className="max-w-[1400px] mx-auto font-sans space-y-6">
+    <div className="max-w-[1400px] mx-auto font-sans space-y-3">
       
       {/* Filters & Vertical Summary Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -138,7 +138,7 @@ export default function ShareList({ onStartShares }) {
               onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
-              <option value="All">All Share Categories</option>
+              <option value="All">Share Categories</option>
               <option value="Standard">Standard</option>
               <option value="Lifetime">Lifetime</option>
               <option value="Founder">Founder</option>
@@ -149,7 +149,7 @@ export default function ShareList({ onStartShares }) {
               onChange={(e) => { setBankFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
-              <option value="All">All Receiver Banks</option>
+              <option value="All">Receiver Banks</option>
               <option value="SBI">SBI</option>
               <option value="HDFC Bank">HDFC Bank</option>
               <option value="ICICI Bank">ICICI Bank</option>
@@ -161,7 +161,7 @@ export default function ShareList({ onStartShares }) {
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
-              <option value="All">All Payment Statuses</option>
+              <option value="All">Payment Statuses</option>
               <option value="Complete">Complete</option>
               <option value="Paid">Paid</option>
               <option value="Pending">Pending</option>
@@ -174,7 +174,7 @@ export default function ShareList({ onStartShares }) {
               onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
-              <option value="All">All Payment Modes</option>
+              <option value="All">Payment Modes</option>
               <option value="Cash">Cash</option>
               <option value="UPI / Online">UPI / Online</option>
               <option value="Bank Transfer">Bank Transfer</option>
@@ -186,7 +186,7 @@ export default function ShareList({ onStartShares }) {
               onChange={(e) => { setPaymentBankFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
-              <option value="All">All Payer Banks (Source)</option>
+              <option value="All">Payer Banks (Source)</option>
               <option value="SBI">SBI</option>
               <option value="HDFC">HDFC</option>
               <option value="GPay">GPay</option>
@@ -209,7 +209,7 @@ export default function ShareList({ onStartShares }) {
               }}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
             >
-              Reset All Filters
+              Reset Filters
             </button>
           </div>
         </div>

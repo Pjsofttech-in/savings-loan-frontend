@@ -71,6 +71,10 @@ export async function fetchMemberById(memberId) {
   }
 }
 
+export async function deleteMember(memberId) {
+  await apiClient.delete(`/api/members/${encodeURIComponent(memberId)}`);
+}
+
 export async function updateMember(memberId, memberData) {
   try {
     const { data } = await apiClient.put(`/api/members/${encodeURIComponent(memberId)}`, memberData);

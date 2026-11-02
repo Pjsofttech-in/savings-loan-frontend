@@ -163,7 +163,7 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="h-8 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none cursor-pointer"
             >
-              <option value="All">All Months</option>
+              <option value="All">Months</option>
               {MONTHS_LIST.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
 

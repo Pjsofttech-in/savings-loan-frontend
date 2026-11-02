@@ -1,4 +1,8 @@
-﻿function FormField({ id, label, value, onChange, onBlur, readOnly = false, error, type = "text", required = false, placeholder, min, minLength, maxLength, pattern, step, inputMode, children, className = "" }) {
+﻿const capitalizeWords = (text) => typeof text === "string"
+  ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
+  : text;
+
+function FormField({ id, label, value, onChange, onBlur, readOnly = false, error, type = "text", required = false, placeholder, min, minLength, maxLength, pattern, step, inputMode, children, className = "" }) {
   const errorId = `${id}-error`;
   return (
     <div className={`relative min-w-0 mb-0 flex flex-col pt-1.5 ${className}`}>
@@ -12,7 +16,7 @@
           name={id}
           type={type}
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => onChange(type === "text" ? capitalizeWords(event.target.value) : event.target.value)}
           onBlur={onBlur ? (event) => onBlur(event.target.value) : undefined}
           readOnly={readOnly}
           required={required}
