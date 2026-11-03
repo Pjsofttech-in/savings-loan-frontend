@@ -28,6 +28,7 @@ export default function List({ onEditMember }) {
   const [filterMemberStatus, setFilterMemberStatus] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterBank, setFilterBank] = useState("All");
+  const [filterTimeframe, setFilterTimeframe] = useState("All");
 
   const latestRequest = useRef(0);
 
@@ -222,6 +223,29 @@ export default function List({ onEditMember }) {
     if (filterMemberStatus !== "All" && item.memberStatus !== filterMemberStatus) return false;
     if (filterCategory !== "All" && item.category !== filterCategory) return false;
     if (filterBank !== "All" && item.bank !== filterBank) return false;
+
+    if (filterTimeframe !== "All") {
+      const recordDate = new Date(item.date);
+      if (Number.isNaN(recordDate.getTime())) return false;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const cutoff = new Date(today);
+
+      if (filterTimeframe === "Today") {
+        cutoff.setHours(0, 0, 0, 0);
+      } else if (filterTimeframe === "7 Days" || filterTimeframe === "1 Week") {
+        cutoff.setDate(cutoff.getDate() - 7);
+      } else if (filterTimeframe === "1 Month") {
+        cutoff.setMonth(cutoff.getMonth() - 1);
+      } else if (filterTimeframe === "1 Year") {
+        cutoff.setFullYear(cutoff.getFullYear() - 1);
+      }
+
+      recordDate.setHours(0, 0, 0, 0);
+      if (recordDate < cutoff || recordDate > new Date()) return false;
+    }
+
     if (searchQuery.trim() && !item.user.toLowerCase().includes(searchQuery.toLowerCase()) && !String(item.memberId).toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
@@ -242,11 +266,11 @@ export default function List({ onEditMember }) {
   const rawM = selectedMember ? (selectedMember.rawMember || selectedMember) : null;
 
   return (
-    <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
+    <div className="p-1 lg:p-2 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
       
       {/* Header & Advanced Filters */}
-      <div className="mb-5 pb-4 border-b border-slate-200 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="mb-2 pb-2 border-b border-slate-200 space-y-1">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
           <div>
             
             
@@ -264,7 +288,20 @@ export default function List({ onEditMember }) {
         </div>
 
         {/* Filter Dropdowns Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-0">
+          <select
+            value={filterTimeframe}
+            onChange={(e) => setFilterTimeframe(e.target.value)}
+            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
+          >
+            <option value="All">All Time</option>
+            <option value="Today">Today</option>
+            <option value="7 Days">7 Days</option>
+            <option value="1 Week">1 Week</option>
+            <option value="1 Month">1 Month</option>
+            <option value="1 Year">1 Year</option>
+          </select>
+
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}

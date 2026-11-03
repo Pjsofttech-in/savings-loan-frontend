@@ -1,4 +1,4 @@
-/* Display text in sentence case: lowercase words with an initial capital. */
+/* Capitalize the first letter of every visible word across the site. */
 .app-shell td,
 .app-shell th,
 .app-shell label,
@@ -9,28 +9,15 @@
 .app-shell h2,
 .app-shell h3,
 .app-shell h4,
-.app-shell span {
-  text-transform: lowercase;
-}
-
-.app-shell td::first-letter,
-.app-shell th::first-letter,
-.app-shell label::first-letter,
-.app-shell button::first-letter,
-.app-shell option::first-letter,
-.app-shell p::first-letter,
-.app-shell h1::first-letter,
-.app-shell h2::first-letter,
-.app-shell h3::first-letter,
-.app-shell h4::first-letter,
-.app-shell span::first-letter {
-  text-transform: uppercase;
+.app-shell span,
+.app-shell a {
+  text-transform: capitalize;
 }
 
 .app-shell input[type="text"],
 .app-shell input:not([type]),
 .app-shell textarea {
-  text-transform: lowercase;
+  text-transform: capitalize;
 }
 
 .app-shell {
@@ -227,6 +214,7 @@
 .sidebar .nav-links button {
   text-align: left;
   width: 100%;
+  text-transform: capitalize;
 }
 .registration-page {
   height: calc(100vh - 72px);

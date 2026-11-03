@@ -16,6 +16,7 @@ export default function MonthlySavingList({ onStartSaving }) {
   const [monthFilter, setMonthFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [modeFilter, setModeFilter] = useState("All");
+  const [timeframeFilter, setTimeframeFilter] = useState("All");
 
   // Modal State for "i" Button & Calculator
   const [selectedSaving, setSelectedSaving] = useState(null);
@@ -55,15 +56,23 @@ export default function MonthlySavingList({ onStartSaving }) {
       const matchesMonth = monthFilter === "All" || item.month === monthFilter;
       const matchesStatus = statusFilter === "All" || item.status === statusFilter;
       const matchesMode = modeFilter === "All" || item.mode === modeFilter;
-      return matchesSearch && matchesYear && matchesMonth && matchesStatus && matchesMode;
+      let matchesTimeframe = true;
+      if (timeframeFilter !== "All") {
+        const recordDate = new Date(item.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const cutoff = new Date(today);
+        if (timeframeFilter === "7 Days" || timeframeFilter === "1 Week") cutoff.setDate(cutoff.getDate() - 7);
+        if (timeframeFilter === "1 Month") cutoff.setMonth(cutoff.getMonth() - 1);
+        if (timeframeFilter === "1 Year") cutoff.setFullYear(cutoff.getFullYear() - 1);
+        recordDate.setHours(0, 0, 0, 0);
+        matchesTimeframe = !Number.isNaN(recordDate.getTime()) && recordDate >= (timeframeFilter === "Today" ? today : cutoff) && recordDate <= new Date();
+      }
+      return matchesSearch && matchesYear && matchesMonth && matchesStatus && matchesMode && matchesTimeframe;
     });
-  }, [savings, searchQuery, yearFilter, monthFilter, statusFilter, modeFilter]);
+  }, [savings, searchQuery, yearFilter, monthFilter, statusFilter, modeFilter, timeframeFilter]);
 
   // Financial Summary Totals
-  const totalAmount = filteredSavings.reduce((acc, curr) => acc + curr.amountMonthly, 0);
-  const paidAmount = filteredSavings.filter(i => i.status === "Paid" || i.status === "Installment" || i.status === "Complete").reduce((acc, curr) => acc + curr.amountMonthly, 0);
-  const pendingAmount = filteredSavings.filter(i => i.status === "Pending").reduce((acc, curr) => acc + curr.amountMonthly, 0);
-
   // Pagination calculation
   const totalPages = Math.ceil(filteredSavings.length / entriesPerPage) || 1;
   const paginatedData = useMemo(() => {
@@ -72,11 +81,11 @@ export default function MonthlySavingList({ onStartSaving }) {
   }, [filteredSavings, currentPage, entriesPerPage]);
 
   return (
-    <div className="max-w-[1400px] mx-auto font-sans space-y-3">
+    <div className="max-w-[1400px] mx-auto font-sans space-y-1">
       
-      {/* Filters & Summary Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+      {/* Filters Panel */}
+      <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+        <div className="space-y-1">
           <div className="flex justify-between items-center">
             <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters</h3>
             <div className="flex items-center gap-2">
@@ -88,23 +97,10 @@ export default function MonthlySavingList({ onStartSaving }) {
                   + Register New Saving
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setYearFilter("All");
-                  setMonthFilter("All");
-                  setStatusFilter("All");
-                  setModeFilter("All");
-                  setCurrentPage(1);
-                }}
-                className="text-xs font-bold text-slate-600 hover:text-teal-700 underline cursor-pointer"
-              >
-                Reset Filters
-              </button>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-1">
             <input
               type="text"
               placeholder="Search ID or Member ID..."
@@ -113,6 +109,19 @@ export default function MonthlySavingList({ onStartSaving }) {
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs w-full focus:outline-none focus:border-teal-700 bg-white text-slate-800"
             />
             
+            <select
+              value={timeframeFilter}
+              onChange={(e) => { setTimeframeFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 font-bold"
+            >
+              <option value="All">All Time</option>
+              <option value="Today">Today</option>
+              <option value="7 Days">7 Days</option>
+              <option value="1 Week">1 Week</option>
+              <option value="1 Month">1 Month</option>
+              <option value="1 Year">1 Year</option>
+            </select>
+
             <select
               value={yearFilter}
               onChange={(e) => { setYearFilter(e.target.value); setCurrentPage(1); }}
@@ -153,22 +162,6 @@ export default function MonthlySavingList({ onStartSaving }) {
               <option value="All">Payment Modes</option>
               {PAYMENT_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
             </select>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between space-y-3">
-          <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider mb-1">Financial Summary</h3>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-600">Total</span>
-            <span className="text-xs font-black text-teal-700">₹{totalAmount.toLocaleString("en-IN")}</span>
-          </div>
-          <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-emerald-800">Paid</span>
-            <span className="text-xs font-black text-emerald-700">₹{paidAmount.toLocaleString("en-IN")}</span>
-          </div>
-          <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-amber-800">Pending</span>
-            <span className="text-xs font-black text-amber-700">₹{pendingAmount.toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>

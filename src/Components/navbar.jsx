@@ -5,8 +5,8 @@ import logo from "../assets/Pj Soft.png";
 function Navbar({ activeView, onNavigate }) {
   const navItems = [
     { id: "dashboard", label: "Dashboard" },
-    { id: "registration", label: "Member registration" },
-    { id: "shares", label: "Shares application" },
+    { id: "registration", label: "Member Registration" },
+    { id: "shares", label: "Shares Application" },
     { id: "savings", label: "Monthly Savings" },
     { id: "settings", label: "Settings" },
   ];

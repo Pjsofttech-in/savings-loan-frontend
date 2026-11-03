@@ -15,6 +15,7 @@ export default function ShareList({ onStartShares }) {
   const [bankFilter, setBankFilter] = useState("All");
   const [paymentBankFilter, setPaymentBankFilter] = useState("All");
   const [dueDateFilter, setDueDateFilter] = useState("");
+  const [timeframeFilter, setTimeframeFilter] = useState("All");
 
   // Modal State for Share Range (i)
   const [selectedShareInfo, setSelectedShareInfo] = useState(null);
@@ -96,15 +97,24 @@ export default function ShareList({ onStartShares }) {
       const matchesMemberStatus = statusFilter === "All" || item.memberStatus === statusFilter;
       const matchesPaymentStatus = statusFilter === "All" || item.paymentStatus === statusFilter;
 
-      return matchesSearch && matchesCategory && matchesBank && matchesPaymentBank && matchesMemberStatus && matchesPaymentStatus;
+      let matchesTimeframe = true;
+      if (timeframeFilter !== "All") {
+        const recordDate = new Date(item.applicationDate || item.createdAt || item.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const cutoff = new Date(today);
+        if (timeframeFilter === "7 Days" || timeframeFilter === "1 Week") cutoff.setDate(cutoff.getDate() - 7);
+        if (timeframeFilter === "1 Month") cutoff.setMonth(cutoff.getMonth() - 1);
+        if (timeframeFilter === "1 Year") cutoff.setFullYear(cutoff.getFullYear() - 1);
+        recordDate.setHours(0, 0, 0, 0);
+        matchesTimeframe = !Number.isNaN(recordDate.getTime()) && recordDate >= (timeframeFilter === "Today" ? today : cutoff) && recordDate <= new Date();
+      }
+
+      return matchesSearch && matchesCategory && matchesBank && matchesPaymentBank && matchesMemberStatus && matchesPaymentStatus && matchesTimeframe;
     });
-  }, [shares, searchQuery, categoryFilter, bankFilter, paymentBankFilter, statusFilter]);
+  }, [shares, searchQuery, categoryFilter, bankFilter, paymentBankFilter, statusFilter, timeframeFilter]);
 
   // Financial Summary Calculations
-  const totalAmount = filteredShares.reduce((acc, curr) => acc + (Number(curr.paymentAmount || curr.totalAmount || curr.quantity * 500) || 0), 0);
-  const paidAmount = filteredShares.filter(i => i.paymentStatus === "Paid" || i.paymentStatus === "Complete").reduce((acc, curr) => acc + (Number(curr.paymentAmount || curr.totalAmount || curr.quantity * 500) || 0), 0);
-  const pendingAmount = filteredShares.filter(i => i.paymentStatus === "Pending").reduce((acc, curr) => acc + (Number(curr.paymentAmount || curr.totalAmount || curr.quantity * 500) || 0), 0);
-
   // Pagination calculation
   const totalPages = Math.ceil(filteredShares.length / entriesPerPage) || 1;
   const paginatedData = useMemo(() => {
@@ -113,13 +123,11 @@ export default function ShareList({ onStartShares }) {
   }, [filteredShares, currentPage, entriesPerPage]);
 
   return (
-    <div className="max-w-[1400px] mx-auto font-sans space-y-3">
+    <div className="max-w-[1400px] mx-auto font-sans space-y-1">
       
-      {/* Filters & Vertical Summary Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
-        {/* Filters Panel */}
-        <div className="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+      {/* Filters Panel */}
+      <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+        <div className="space-y-1">
           <div className="flex justify-between items-center">
             <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters & Management</h3>
             {onStartShares && (
@@ -132,7 +140,7 @@ export default function ShareList({ onStartShares }) {
             )}
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1">
             <input
               type="text"
               placeholder="Search Folio ID or Member Name..."
@@ -141,6 +149,19 @@ export default function ShareList({ onStartShares }) {
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs w-full focus:outline-none focus:border-teal-700 bg-white text-slate-800"
             />
             
+            <select
+              value={timeframeFilter}
+              onChange={(e) => { setTimeframeFilter(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
+            >
+              <option value="All">All Time</option>
+              <option value="Today">Today</option>
+              <option value="7 Days">7 Days</option>
+              <option value="1 Week">1 Week</option>
+              <option value="1 Month">1 Month</option>
+              <option value="1 Year">1 Year</option>
+            </select>
+
             <select
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
@@ -201,47 +222,7 @@ export default function ShareList({ onStartShares }) {
               <option value="PhonePe">PhonePe</option>
             </select>
           </div>
-
-          <div className="flex justify-end pt-1">
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setYearFilter("All");
-                setStatusFilter("All");
-                setModeFilter("All");
-                setCategoryFilter("All");
-                setBankFilter("All");
-                setPaymentBankFilter("All");
-                setDueDateFilter("");
-                setCurrentPage(1);
-              }}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
-            >
-              Reset Filters
-            </button>
-          </div>
         </div>
-
-        {/* Vertical Financial Summary Cards */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between space-y-3">
-          <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider mb-1">Financial Summary</h3>
-          
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-600">Total Amount</span>
-            <span className="text-xs font-black text-teal-700">₹{totalAmount.toLocaleString("en-IN")}</span>
-          </div>
-
-          <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-emerald-800">Paid</span>
-            <span className="text-xs font-black text-emerald-700">₹{paidAmount.toLocaleString("en-IN")}</span>
-          </div>
-
-          <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-amber-800">Pending</span>
-            <span className="text-xs font-black text-amber-700">₹{pendingAmount.toLocaleString("en-IN")}</span>
-          </div>
-        </div>
-
       </div>
 
       {/* Data Table */}
