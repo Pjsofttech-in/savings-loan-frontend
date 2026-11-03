@@ -72,7 +72,15 @@ export default function MonthlySavingList({ onStartSaving }) {
     });
   }, [savings, searchQuery, yearFilter, monthFilter, statusFilter, modeFilter, timeframeFilter]);
 
-  // Financial Summary Totals
+  const totalCollected = filteredSavings
+    .filter((saving) => ["Paid", "Complete", "Installment"].includes(saving.status))
+    .reduce((total, saving) => total + (Number(saving.amountMonthly) || 0), 0);
+  const totalPending = filteredSavings
+    .filter((saving) => saving.status === "Pending")
+    .reduce((total, saving) => total + (Number(saving.amountMonthly) || 0), 0);
+  const totalMonthly = filteredSavings.reduce((total, saving) => total + (Number(saving.amountMonthly) || 0), 0);
+  const totalYearly = totalMonthly * 12;
+
   // Pagination calculation
   const totalPages = Math.ceil(filteredSavings.length / entriesPerPage) || 1;
   const paginatedData = useMemo(() => {
@@ -167,6 +175,25 @@ export default function MonthlySavingList({ onStartSaving }) {
       </div>
 
       {loadError && <p className="text-red-600 text-xs" role="alert">{loadError}</p>}
+
+      <div className="flex flex-wrap items-center gap-3 py-1">
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Collected:</span>
+          <span className="text-sm font-extrabold text-emerald-700">₹{totalCollected.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Pending:</span>
+          <span className="text-sm font-extrabold text-amber-600">₹{totalPending.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Monthly:</span>
+          <span className="text-sm font-extrabold text-teal-700">₹{totalMonthly.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Yearly:</span>
+          <span className="text-sm font-extrabold text-sky-700">₹{totalYearly.toLocaleString("en-IN")}</span>
+        </div>
+      </div>
 
       {/* Data Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

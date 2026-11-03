@@ -114,7 +114,16 @@ export default function ShareList({ onStartShares }) {
     });
   }, [shares, searchQuery, categoryFilter, bankFilter, paymentBankFilter, statusFilter, timeframeFilter]);
 
-  // Financial Summary Calculations
+  const shareAmount = (share) => Number(share.paymentAmount || share.totalAmount || share.quantity * 500) || 0;
+  const totalCollected = filteredShares
+    .filter((share) => ["Paid", "Complete"].includes(share.paymentStatus))
+    .reduce((total, share) => total + shareAmount(share), 0);
+  const totalPending = filteredShares
+    .filter((share) => share.paymentStatus === "Pending")
+    .reduce((total, share) => total + shareAmount(share), 0);
+  const totalMonthly = filteredShares.reduce((total, share) => total + (Number(share.monthlySaving) || 0), 0);
+  const totalYearly = totalMonthly * 12;
+
   // Pagination calculation
   const totalPages = Math.ceil(filteredShares.length / entriesPerPage) || 1;
   const paginatedData = useMemo(() => {
@@ -222,6 +231,25 @@ export default function ShareList({ onStartShares }) {
               <option value="PhonePe">PhonePe</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 py-1">
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Collected:</span>
+          <span className="text-sm font-extrabold text-emerald-700">₹{totalCollected.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Pending:</span>
+          <span className="text-sm font-extrabold text-amber-600">₹{totalPending.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Monthly:</span>
+          <span className="text-sm font-extrabold text-teal-700">₹{totalMonthly.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2">
+          <span className="text-slate-500 font-bold">Total Yearly:</span>
+          <span className="text-sm font-extrabold text-sky-700">₹{totalYearly.toLocaleString("en-IN")}</span>
         </div>
       </div>
 
