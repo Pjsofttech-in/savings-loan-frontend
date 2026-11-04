@@ -208,6 +208,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
           monthlyFee: monthlyContribution,
         };
         await updateMember(editingMember.id, updatePayload);
+        window.dispatchEvent(new Event("dataUpdated"));
         if (onSuccess) onSuccess();
       } else {
         const formData = new FormData();

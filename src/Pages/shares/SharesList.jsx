@@ -435,6 +435,10 @@ export default function ShareList({ onStartShares }) {
 // Edit Modal Sub-Component (Fully handles updating pending status, amounts, and modes)
 function EditShareModal({ share, onClose, onSaveSuccess }) {
   const [formData, setFormData] = useState({
+    memberName: share.memberName || share.fullName || "",
+    memberMobile: share.mobile || "",
+    memberAddress: share.address || "",
+    numberOfShares: share.quantity || share.numberOfShares || 1,
     shareType: share.shareType || "Standard",
     destinationBank: share.destinationBank || "SBI",
     paymentStatus: share.paymentStatus || "Complete",
@@ -454,14 +458,20 @@ function EditShareModal({ share, onClose, onSaveSuccess }) {
     setErrorMsg("");
 
     try {
-      // Sends updated payload (including changed status from Pending to Complete/Paid) to backend API
+      const memberId = share.memberId ?? share.member?.id;
+      if (memberId) {
+        await apiClient.put(`/api/members/${memberId}`, {
+          fullName: formData.memberName,
+          mobile: formData.memberMobile,
+          address: formData.memberAddress,
+        });
+      }
+
       await apiClient.put(`/api/shares/${share.id}`, formData);
       window.dispatchEvent(new Event("dataUpdated"));
       onSaveSuccess();
     } catch (err) {
-      console.warn("Backend API update failed, saving state locally", err);
-      window.dispatchEvent(new Event("dataUpdated"));
-      onSaveSuccess();
+      setErrorMsg(err.response?.data?.message || err.message || "Could not save changes. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -482,6 +492,50 @@ function EditShareModal({ share, onClose, onSaveSuccess }) {
 
         <form onSubmit={handleUpdate} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Member Name *</label>
+              <input
+                type="text"
+                value={formData.memberName}
+                onChange={(e) => setFormData({...formData, memberName: e.target.value})}
+                className="w-full p-2 border rounded-lg font-bold"
+                required
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Mobile Number *</label>
+              <input
+                type="tel"
+                value={formData.memberMobile}
+                onChange={(e) => setFormData({...formData, memberMobile: e.target.value})}
+                className="w-full p-2 border rounded-lg font-bold"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Member Address</label>
+            <input
+              type="text"
+              value={formData.memberAddress}
+              onChange={(e) => setFormData({...formData, memberAddress: e.target.value})}
+              className="w-full p-2 border rounded-lg"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Number of Shares *</label>
+              <input
+                type="number"
+                min="1"
+                value={formData.numberOfShares}
+                onChange={(e) => setFormData({...formData, numberOfShares: Math.max(1, Number(e.target.value) || 1)})}
+                className="w-full p-2 border rounded-lg font-bold"
+                required
+              />
+            </div>
             <div>
               <label className="block font-bold text-slate-700 mb-1">Share Category</label>
               <select
