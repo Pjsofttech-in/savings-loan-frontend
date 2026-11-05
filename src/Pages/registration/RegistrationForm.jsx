@@ -85,18 +85,18 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
       pincode: editingMember?.pincode || ""
     },
     witness1: {
-      witnessName: editingMember?.witnessName || "",
-      witnessMemberNo: editingMember?.witnessMemberNo || "",
-      witnessPhone: editingMember?.witnessPhone || "",
-      witnessEmail: editingMember?.witnessEmail || "",
-      witnessIdProofType: editingMember?.witnessIdProofType || ID_DOCUMENT_OPTIONS[0],
+      witnessName: editingMember?.witnessName || editingMember?.witness1Name || "",
+      witnessMemberNo: editingMember?.witnessMemberNo || editingMember?.witness1MemberNo || "",
+      witnessPhone: editingMember?.witnessPhone || editingMember?.witness1Phone || "",
+      witnessEmail: editingMember?.witnessEmail || editingMember?.witness1Email || "",
+      witnessIdProofType: editingMember?.witnessIdProofType || editingMember?.witness1IdType || editingMember?.witness1IdProofType || "",
     },
     witness2: {
-      witnessName: editingMember?.witness2Name || "",
-      witnessMemberNo: editingMember?.witness2MemberNo || "",
-      witnessPhone: editingMember?.witness2Phone || "",
-      witnessEmail: editingMember?.witness2Email || "",
-      witnessIdProofType: editingMember?.witness2IdProofType || ID_DOCUMENT_OPTIONS[0],
+      witnessName: editingMember?.witness2Name || editingMember?.witnessName2 || "",
+      witnessMemberNo: editingMember?.witness2MemberNo || editingMember?.witnessMemberNo2 || "",
+      witnessPhone: editingMember?.witness2Phone || editingMember?.witnessPhone2 || "",
+      witnessEmail: editingMember?.witness2Email || editingMember?.witnessEmail2 || "",
+      witnessIdProofType: editingMember?.witness2IdProofType || editingMember?.witnessIdProofType2 || "",
     }
   });
 
@@ -119,7 +119,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     return () => window.removeEventListener("settingsUpdated", handleSettingsUpdate);
   }, [form.personal.memberType]);
 
-  const [documentType, setDocumentType] = useState("Aadhaar Card");
+  const [documentType, setDocumentType] = useState(editingMember?.documentType || "Aadhaar Card");
   const [documentFile, setDocumentFile] = useState(null);
   const [witnessDocFile, setWitnessDocFile] = useState(null);
   const [witness2DocFile, setWitness2DocFile] = useState(null);
@@ -170,11 +170,6 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     if (!editingMember && (!form.personal.password || form.personal.password.length < 8)) newErrors.password = "Min 8 chars required.";
     if (!editingMember && !documentFile) newErrors.document = "Document required.";
     
-    if (!form.witness1.witnessName) newErrors.witness1Name = "Witness 1 required.";
-    if (!form.witness1.witnessMemberNo) newErrors.witness1MemberNo = "Witness 1 ID required.";
-    if (!form.witness2.witnessName) newErrors.witness2Name = "Witness 2 required.";
-    if (!form.witness2.witnessMemberNo) newErrors.witness2MemberNo = "Witness 2 ID required.";
-
     if (form.personal.paymentStatus !== "Pending" && !form.personal.destinationBank) {
       newErrors.destinationBank = "Receiving bank required.";
     }
@@ -204,6 +199,7 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
           witness2Phone: form.witness2.witnessPhone,
           witness2Email: form.witness2.witnessEmail,
           witness2IdProofType: form.witness2.witnessIdProofType,
+          documentType,
           registrationFee: adminRegistrationFee,
           monthlyFee: monthlyContribution,
         };
@@ -348,11 +344,11 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
           <div className="mb-4 pb-3 border-b border-slate-200">
             <h4 className="text-xs font-bold text-teal-800 uppercase mb-2">👤 Witness 1 Details</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              <FormField id="witnessName" label="Witness 1 Name *" value={form.witness1.witnessName} onChange={(val) => updateField("witness1", "witnessName", val)} error={errors.witness1Name} placeholder="Name" required />
-              <FormField id="witnessMemberNo" label="Witness 1 Member No *" value={form.witness1.witnessMemberNo} onChange={(val) => updateField("witness1", "witnessMemberNo", val)} error={errors.witness1MemberNo} placeholder="ID" required />
-              <FormField id="witnessPhone" label="Witness 1 Phone *" value={form.witness1.witnessPhone} onChange={(val) => updateField("witness1", "witnessPhone", val)} placeholder="Phone" required />
+              <FormField id="witnessName" label="Witness 1 Name (Optional)" value={form.witness1.witnessName} onChange={(val) => updateField("witness1", "witnessName", val)} error={errors.witness1Name} placeholder="Name" />
+              <FormField id="witnessMemberNo" label="Witness 1 Member No (Optional)" value={form.witness1.witnessMemberNo} onChange={(val) => updateField("witness1", "witnessMemberNo", val)} error={errors.witness1MemberNo} placeholder="ID" />
+              <FormField id="witnessPhone" label="Witness 1 Phone (Optional)" value={form.witness1.witnessPhone} onChange={(val) => updateField("witness1", "witnessPhone", val)} placeholder="Phone" />
               <FormField id="witnessEmail" label="Witness 1 Email" type="email" value={form.witness1.witnessEmail} onChange={(val) => updateField("witness1", "witnessEmail", val)} placeholder="Email" />
-              <SelectField id="witnessIdProofType" label="Witness 1 ID Type *" value={form.witness1.witnessIdProofType} onChange={(val) => updateField("witness1", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
+              <SelectField id="witnessIdProofType" label="Witness 1 ID Type (Optional)" value={form.witness1.witnessIdProofType} onChange={(val) => updateField("witness1", "witnessIdProofType", val)} options={["", ...ID_DOCUMENT_OPTIONS]} />
             </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
               <div>
@@ -372,11 +368,11 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
           <div className="mb-4 pb-3 border-b border-slate-200">
             <h4 className="text-xs font-bold text-teal-800 uppercase mb-2">👤 Witness 2 Details</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              <FormField id="witness2Name" label="Witness 2 Name *" value={form.witness2.witnessName} onChange={(val) => updateField("witness2", "witnessName", val)} error={errors.witness2Name} placeholder="Name" required />
-              <FormField id="witness2MemberNo" label="Witness 2 Member No *" value={form.witness2.witnessMemberNo} onChange={(val) => updateField("witness2", "witnessMemberNo", val)} error={errors.witness2MemberNo} placeholder="ID" required />
-              <FormField id="witness2Phone" label="Witness 2 Phone *" value={form.witness2.witnessPhone} onChange={(val) => updateField("witness2", "witnessPhone", val)} placeholder="Phone" required />
+              <FormField id="witness2Name" label="Witness 2 Name (Optional)" value={form.witness2.witnessName} onChange={(val) => updateField("witness2", "witnessName", val)} error={errors.witness2Name} placeholder="Name" />
+              <FormField id="witness2MemberNo" label="Witness 2 Member No (Optional)" value={form.witness2.witnessMemberNo} onChange={(val) => updateField("witness2", "witnessMemberNo", val)} error={errors.witness2MemberNo} placeholder="ID" />
+              <FormField id="witness2Phone" label="Witness 2 Phone (Optional)" value={form.witness2.witnessPhone} onChange={(val) => updateField("witness2", "witnessPhone", val)} placeholder="Phone" />
               <FormField id="witness2Email" label="Witness 2 Email" type="email" value={form.witness2.witnessEmail} onChange={(val) => updateField("witness2", "witnessEmail", val)} placeholder="Email" />
-              <SelectField id="witness2IdProofType" label="Witness 2 ID Type *" value={form.witness2.witnessIdProofType} onChange={(val) => updateField("witness2", "witnessIdProofType", val)} options={ID_DOCUMENT_OPTIONS} required />
+              <SelectField id="witness2IdProofType" label="Witness 2 ID Type (Optional)" value={form.witness2.witnessIdProofType} onChange={(val) => updateField("witness2", "witnessIdProofType", val)} options={["", ...ID_DOCUMENT_OPTIONS]} />
             </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
               <div>

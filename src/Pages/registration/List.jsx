@@ -167,48 +167,51 @@ export default function List({ onEditMember }) {
     if (typeof onEditMember === "function") {
       const raw = record.rawMember || {};
       const share = record.share || {};
-      
-      // Passing raw details as-is so nothing gets overridden or lost
+      const storedAddress = raw.address || record.address || "";
+      const addressWithoutPincode = storedAddress.includes(" - ")
+        ? storedAddress.split(" - ")[0].trim()
+        : storedAddress;
+      const storedPincode = raw.pincode || (storedAddress.match(/-\s*(\d{6})\s*$/)?.[1] || "");
+      const addressParts = addressWithoutPincode.split(/\s*,\s*/);
+      const dob = raw.dob || raw.birthDate;
+
       onEditMember({
         ...raw,
         id: record.id,
         fullName: raw.fullName || record.user || "",
         fatherName: raw.fatherName || "",
-        dob: raw.dob || "",
+        dob: typeof dob === "string" ? dob.slice(0, 10) : dob || "",
         gender: raw.gender || "",
         occupation: raw.occupation || "",
         memberType: raw.memberType || record.category || "Standard",
-        year: raw.year || "2026",
+        membershipYear: raw.membershipYear || raw.year || "2026",
         mobile: raw.mobile || record.mobile || "",
         email: raw.email || "",
         nomineeName: raw.nomineeName || "",
-        nomineeRelation: raw.nomineeRelation || "",
+        nomineeRelationship: raw.nomineeRelationship || raw.nomineeRelation || "",
         nomineeMobile: raw.nomineeMobile || "",
-        
-        // Address fields
-        pincode: raw.pincode || "",
-        district: raw.district || "",
-        taluka: raw.taluka || "",
-        state: raw.state || "",
+
+        street: raw.street || addressParts[0] || "",
+        pincode: storedPincode,
+        district: raw.district || addressParts[addressParts.length >= 3 ? addressParts.length - 2 : 0] || "",
+        taluka: raw.taluka || addressParts[addressParts.length >= 4 ? addressParts.length - 3 : 0] || "",
+        state: raw.state || addressParts[addressParts.length >= 2 ? addressParts.length - 1 : 0] || "",
         city: raw.city || "",
         address: raw.address || record.address || "",
-        
-        // Witness 1 fields
-        witness1Name: raw.witness1Name || "",
-        witness1MemberNo: raw.witness1MemberNo || "",
-        witness1Phone: raw.witness1Phone || "",
-        witness1Email: raw.witness1Email || "",
-        witness1IdType: raw.witness1IdType || "Aadhaar Card",
 
-        // Witness 2 fields
+        witnessName: raw.witnessName || raw.witness1Name || "",
+        witnessMemberNo: raw.witnessMemberNo || raw.witness1MemberNo || "",
+        witnessPhone: raw.witnessPhone || raw.witness1Phone || "",
+        witnessEmail: raw.witnessEmail || raw.witness1Email || "",
+        witnessIdProofType: raw.witnessIdProofType || raw.witness1IdProofType || raw.witness1IdType || "",
+
         witness2Name: raw.witness2Name || "",
         witness2MemberNo: raw.witness2MemberNo || "",
         witness2Phone: raw.witness2Phone || "",
         witness2Email: raw.witness2Email || "",
-        witness2IdType: raw.witness2IdType || "Aadhaar Card",
+        witness2IdProofType: raw.witness2IdProofType || "",
 
-        // Payment / Financial fields
-        registrationFee: raw.registrationFee || record.shareAmount || 500,
+        registrationFee: raw.registrationFee ?? record.shareAmount ?? 500,
         paymentStatus: raw.paymentStatus || record.paymentStatus || "Complete",
         paymentMode: raw.paymentMode || record.paymentMethod || "Cash",
         destinationBank: raw.destinationBank || record.bank || "SBI (Current Account - 123456789)",
@@ -591,7 +594,8 @@ export default function List({ onEditMember }) {
                   <h3 className="text-base font-black text-[#5b51d8]">Nominee details</h3>
                   <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
                     <p className="text-xs font-bold text-slate-600">Nominee Name: <span className="text-slate-900">{rawM?.nomineeName || "Not Provided"}</span></p>
-                    <p className="text-xs font-bold text-slate-600 mt-2">Relation: <span className="text-slate-900">{rawM?.nomineeRelation || "N/A"}</span></p>
+                    <p className="text-xs font-bold text-slate-600 mt-2">Relation: <span className="text-slate-900">{rawM?.nomineeRelationship || rawM?.nomineeRelation || "Not Provided"}</span></p>
+                    <p className="text-xs font-bold text-slate-600 mt-2">Mobile: <span className="text-slate-900">{rawM?.nomineeMobile || "Not Provided"}</span></p>
                   </div>
                 </div>
               )}
