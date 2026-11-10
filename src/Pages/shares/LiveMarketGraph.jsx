@@ -1,76 +1,79 @@
 ﻿// src/Pages/shares/ProfessionalMarketChart.jsx
 import { useState, useEffect, useRef } from "react";
 
-export default function ProfessionalMarketChart() {
-  const [timeframe, setTimeframe] = useState("1M");
-  const [chartData, setChartData] = useState([]);
-  const [hoverIndex, setHoverIndex] = useState(null);
-  const [marketStats, setMarketStats] = useState({
-    open: 2420.50,
-    high: 2485.00,
-    low: 2390.20,
-    close: 2450.75,
-    volume: "1.42M",
-    changePercent: "+2.14%"
+function createMarketSnapshot(timeframe) {
+  let basePrice = 2400;
+  const pointsCount = timeframe === "1D" ? 24 : timeframe === "1W" ? 35 : 50;
+
+  const chartData = Array.from({ length: pointsCount }, (_, i) => {
+    const fluctuation = Math.sin(i / 3) * 25 + (Math.random() * 18 - 8);
+    basePrice = Number((basePrice + fluctuation).toFixed(2));
+    return {
+      time: timeframe === "1D" ? `${i}:00` : `Day ${i + 1}`,
+      price: basePrice,
+      volume: Math.floor(Math.random() * 50000 + 10000),
+    };
   });
 
+  const first = chartData[0].price;
+  const last = chartData[chartData.length - 1].price;
+  const changePercent = (((last - first) / first) * 100).toFixed(2);
+
+  return {
+    chartData,
+    marketStats: {
+      open: first,
+      high: Math.max(...chartData.map((point) => point.price)),
+      low: Math.min(...chartData.map((point) => point.price)),
+      close: last,
+      volume: "1.84M",
+      changePercent: `${changePercent >= 0 ? "+" : ""}${changePercent}%`,
+    },
+  };
+}
+
+export default function ProfessionalMarketChart() {
+  const [timeframe, setTimeframe] = useState("1M");
+  const [marketSnapshot, setMarketSnapshot] = useState(() => createMarketSnapshot("1M"));
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const { chartData, marketStats } = marketSnapshot;
+
   const svgRef = useRef(null);
-
-  // Generate institutional-grade historical/live dataset based on timeframe
-  useEffect(() => {
-    let basePrice = 2400;
-    const pointsCount = timeframe === "1D" ? 24 : timeframe === "1W" ? 35 : 50;
-    
-    const generated = Array.from({ length: pointsCount }, (_, i) => {
-      const fluctuation = (Math.sin(i / 3) * 25) + (Math.random() * 18 - 8);
-      basePrice = Number((basePrice + fluctuation).toFixed(2));
-      return {
-        time: timeframe === "1D" ? `${i}:00` : `Day ${i + 1}`,
-        price: basePrice,
-        volume: Math.floor(Math.random() * 50000 + 10000),
-      };
-    });
-
-    setChartData(generated);
-    if (generated.length > 0) {
-      const last = generated[generated.length - 1].price;
-      const first = generated[0].price;
-      const pct = (((last - first) / first) * 100).toFixed(2);
-      setMarketStats({
-        open: first,
-        high: Math.max(...generated.map(d => d.price)),
-        low: Math.min(...generated.map(d => d.price)),
-        close: last,
-        volume: "1.84M",
-        changePercent: `${pct >= 0 ? "+" : ""}${pct}%`
-      });
-    }
-  }, [timeframe]);
 
   // Real-time live websocket ticker simulation
   useEffect(() => {
     const timer = setInterval(() => {
-      setChartData((prev) => {
-        if (prev.length === 0) return prev;
-        const lastItem = prev[prev.length - 1];
+      setMarketSnapshot((current) => {
+        const { chartData: currentData, marketStats: currentStats } = current;
+        if (currentData.length === 0) return current;
+
+        const lastItem = currentData[currentData.length - 1];
         const delta = Number(((Math.random() - 0.49) * 6).toFixed(2));
         const newPrice = Number((lastItem.price + delta).toFixed(2));
-        
-        const updated = [...prev.slice(1), { ...lastItem, price: newPrice, volume: Math.floor(Math.random() * 60000) }];
-        
-        setMarketStats(s => ({
-          ...s,
-          close: newPrice,
-          high: Math.max(s.high, newPrice),
-          low: Math.min(s.low, newPrice)
-        }));
 
-        return updated;
+        return {
+          chartData: [
+            ...currentData.slice(1),
+            { ...lastItem, price: newPrice, volume: Math.floor(Math.random() * 60000) },
+          ],
+          marketStats: {
+            ...currentStats,
+            close: newPrice,
+            high: Math.max(currentStats.high, newPrice),
+            low: Math.min(currentStats.low, newPrice),
+          },
+        };
       });
     }, 1500);
 
     return () => clearInterval(timer);
   }, []);
+
+  const handleTimeframeChange = (nextTimeframe) => {
+    setTimeframe(nextTimeframe);
+    setMarketSnapshot(createMarketSnapshot(nextTimeframe));
+    setHoverIndex(null);
+  };
 
   // SVG coordinate calculations
   const width = 900;
@@ -174,7 +177,7 @@ export default function ProfessionalMarketChart() {
           {["1D", "1W", "1M", "1Y", "ALL"].map((tf) => (
             <button
               key={tf}
-              onClick={() => setTimeframe(tf)}
+              onClick={() => handleTimeframeChange(tf)}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
                 timeframe === tf
                   ? "bg-teal-600 text-white shadow-sm"
