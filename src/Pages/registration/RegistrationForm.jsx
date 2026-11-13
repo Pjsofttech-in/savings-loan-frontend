@@ -19,23 +19,24 @@ const ID_DOCUMENT_OPTIONS = [
   "Aadhaar Card", "PAN Card", "Driving License", "Voter ID Card", "Passport", "Other Government ID"
 ];
 
-function getFeesForType(typeName, settingsObj) {
-  if (settingsObj?.memberTypesWithFee && Array.isArray(settingsObj.memberTypesWithFee)) {
-    const found = settingsObj.memberTypesWithFee.find(
-      (type) => type.name.toLowerCase() === typeName.toLowerCase()
-    );
-    if (found) {
-      return { regFee: found.regFee ?? 500, monthlyFee: found.monthlyFee ?? 1000 };
-    }
-  }
-  return {
-    regFee: settingsObj?.amount || settingsObj?.fee || 500,
-    monthlyFee: settingsObj?.monthlyFee || 1000
-  };
-}
-
 export default function RegistrationForm({ editingMember = null, onCancelEdit, onSuccess }) {
   const [registrationSettings, setRegistrationSettings] = useState(getRegistrationSettings);
+  
+  // Helper function to find fees for a specific member type
+  const getFeesForType = (typeName, settingsObj = registrationSettings) => {
+    if (settingsObj?.memberTypesWithFee && Array.isArray(settingsObj.memberTypesWithFee)) {
+      const found = settingsObj.memberTypesWithFee.find(
+        (t) => t.name.toLowerCase() === typeName.toLowerCase()
+      );
+      if (found) {
+        return { regFee: found.regFee ?? 500, monthlyFee: found.monthlyFee ?? 1000 };
+      }
+    }
+    return {
+      regFee: settingsObj?.amount || settingsObj?.fee || 500,
+      monthlyFee: settingsObj?.monthlyFee || 1000
+    };
+  };
 
   const initialMemberType = editingMember?.memberType || registrationSettings.memberTypes?.[0] || "General";
   const initialFees = getFeesForType(initialMemberType, registrationSettings);

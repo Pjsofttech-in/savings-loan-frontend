@@ -8,11 +8,13 @@ export default function ShareList({ onStartShares }) {
   
   // Advanced Filter states
   const [searchQuery, setSearchQuery] = useState("");
+  const [yearFilter, setYearFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [modeFilter, setModeFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [bankFilter, setBankFilter] = useState("All");
   const [paymentBankFilter, setPaymentBankFilter] = useState("All");
+  const [dueDateFilter, setDueDateFilter] = useState("");
   const [timeframeFilter, setTimeframeFilter] = useState("All");
 
   // Modal State for Share Range (i)
@@ -26,9 +28,12 @@ export default function ShareList({ onStartShares }) {
   const [entriesPerPage, setEntriesPerPage] = useState(5);
 
   const fetchSharesAndMembers = useCallback(() => {
+    setLoading(true);
     const params = new URLSearchParams();
+    if (yearFilter !== "All") params.append("year", yearFilter);
     if (statusFilter !== "All") params.append("status", statusFilter);
     if (modeFilter !== "All") params.append("mode", modeFilter);
+    if (dueDateFilter) params.append("dueDate", dueDateFilter);
 
     Promise.all([
       apiClient.get(`/api/shares?${params.toString()}`).catch(() => ({ data: [] })),
@@ -67,14 +72,11 @@ export default function ShareList({ onStartShares }) {
         setShares(dynamicShares);
       })
       .finally(() => setLoading(false));
-  }, [statusFilter, modeFilter]);
+  }, [yearFilter, statusFilter, modeFilter, dueDateFilter]);
 
   useEffect(() => {
     fetchSharesAndMembers();
-    const refreshShares = () => {
-      setLoading(true);
-      fetchSharesAndMembers();
-    };
+    const refreshShares = () => fetchSharesAndMembers();
     window.addEventListener("dataUpdated", refreshShares);
     window.addEventListener("membersDeleted", refreshShares);
     return () => {
@@ -194,7 +196,7 @@ export default function ShareList({ onStartShares }) {
 
             <select
               value={statusFilter}
-              onChange={(e) => { setLoading(true); setStatusFilter(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
               <option value="All">Payment Statuses</option>
@@ -207,7 +209,7 @@ export default function ShareList({ onStartShares }) {
 
             <select
               value={modeFilter}
-              onChange={(e) => { setLoading(true); setModeFilter(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             >
               <option value="All">Payment Modes</option>

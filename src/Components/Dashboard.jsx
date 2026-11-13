@@ -1,20 +1,7 @@
 ﻿// src/Components/Dashboard.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
 import apiClient from "../services/apiClient";
-
-function getDefaultBreakdown(membersCount) {
-  const baseAmount = Math.max(membersCount, 4) * 5000;
-  return [
-    { month: "Jun", total: baseAmount, paid: baseAmount, pending: 0 },
-    { month: "Jul", total: baseAmount, paid: baseAmount, pending: 0 },
-    { month: "Aug", total: baseAmount, paid: baseAmount, pending: 0 },
-    { month: "Sep", total: baseAmount, paid: baseAmount, pending: 0 },
-    { month: "Oct", total: baseAmount, paid: baseAmount, pending: 0 },
-    { month: "Nov", total: baseAmount, paid: baseAmount, pending: 0 },
-    { month: "Dec", total: baseAmount, paid: baseAmount, pending: 0 },
-  ];
-}
 
 export default function Dashboard({ onStartRegistration, onShowUserList }) {
   const [metrics, setMetrics] = useState({
@@ -34,7 +21,20 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     "2025": []
   });
 
-  const fetchDashboardData = useCallback(() => {
+  function getDefaultBreakdown(yr, membersCount) {
+    const baseAmount = Math.max(membersCount, 4) * 5000;
+    return [
+      { month: "Jun", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Jul", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Aug", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Sep", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Oct", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Nov", total: baseAmount, paid: baseAmount, pending: 0 },
+      { month: "Dec", total: baseAmount, paid: baseAmount, pending: 0 },
+    ];
+  }
+
+  const fetchDashboardData = () => {
     Promise.all([
       apiClient.get('/api/members').catch(() => ({ data: [] })),
       apiClient.get('/api/shares').catch(() => ({ data: [] })),
@@ -83,16 +83,16 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
             return { month: m, total: total || (totalMembers * 5000), paid: paid || (totalMembers * 5000), pending: pending || 0 };
           }).filter(item => item.total > 0);
           
-          dynamicBreakdown[yr] = grouped.length > 0 ? grouped : getDefaultBreakdown(totalMembers);
+          dynamicBreakdown[yr] = grouped.length > 0 ? grouped : getDefaultBreakdown(yr, totalMembers);
         } else {
-          dynamicBreakdown[yr] = getDefaultBreakdown(totalMembers);
+          dynamicBreakdown[yr] = getDefaultBreakdown(yr, totalMembers);
         }
       });
 
       setMonthlySavingsBreakdown(dynamicBreakdown);
     })
     .catch(() => {});
-  }, []);
+  };
 
   useEffect(() => {
     fetchDashboardData();
@@ -101,7 +101,7 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     const handleDataUpdate = () => fetchDashboardData();
     window.addEventListener("dataUpdated", handleDataUpdate);
     return () => window.removeEventListener("dataUpdated", handleDataUpdate);
-  }, [fetchDashboardData]);
+  }, [selectedYear]);
 
   const currentYearSavings = monthlySavingsBreakdown[selectedYear] || [];
   const totalYearAmount = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
