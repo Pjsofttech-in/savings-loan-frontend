@@ -1,5 +1,5 @@
 ﻿// src/Components/Dashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
 import apiClient from "../services/apiClient";
 
@@ -20,27 +20,15 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     "2026": [],
     "2025": []
   });
+  const [dataError, setDataError] = useState("");
 
-  function getDefaultBreakdown(yr, membersCount) {
-    const baseAmount = Math.max(membersCount, 4) * 5000;
-    return [
-      { month: "Jun", total: baseAmount, paid: baseAmount, pending: 0 },
-      { month: "Jul", total: baseAmount, paid: baseAmount, pending: 0 },
-      { month: "Aug", total: baseAmount, paid: baseAmount, pending: 0 },
-      { month: "Sep", total: baseAmount, paid: baseAmount, pending: 0 },
-      { month: "Oct", total: baseAmount, paid: baseAmount, pending: 0 },
-      { month: "Nov", total: baseAmount, paid: baseAmount, pending: 0 },
-      { month: "Dec", total: baseAmount, paid: baseAmount, pending: 0 },
-    ];
-  }
-
-  const fetchDashboardData = () => {
+  const fetchDashboardData = useCallback(() => {
     Promise.all([
-      apiClient.get('/api/members').catch(() => ({ data: [] })),
-      apiClient.get('/api/shares').catch(() => ({ data: [] })),
-      apiClient.get('/api/savings').catch(() => ({ data: [] }))
-    ])
-    .then(([membersRes, sharesRes, savingsRes]) => {
+      apiClient.get('/api/members'),
+      apiClient.get('/api/shares'),
+      apiClient.get('/api/savings')
+    ]).then(([membersRes, sharesRes, savingsRes]) => {
+      setDataError("");
       const members = Array.isArray(membersRes.data) ? membersRes.data : [];
       const shares = Array.isArray(sharesRes.data) ? sharesRes.data : [];
       const savings = Array.isArray(savingsRes.data) ? savingsRes.data : [];
@@ -61,11 +49,11 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
       setMetrics({
         totalMembers,
         totalSharesAllotted,
-        shareCapitalPool: shareCapitalPool > 0 ? shareCapitalPool : totalMembers * 1000,
-        monthlySavingsPool: monthlySavingsPool > 0 ? monthlySavingsPool : totalMembers * 5000,
-        totalCollections: totalCollections > 0 ? totalCollections : (totalMembers * 6000),
-        pendingSavings: pendingSavings > 0 ? pendingSavings : 0,
-        verifiedSavingsCount: verifiedSavingsCount > 0 ? verifiedSavingsCount : totalMembers,
+        shareCapitalPool,
+        monthlySavingsPool,
+        totalCollections,
+        pendingSavings,
+        verifiedSavingsCount,
         pendingSavingsCount,
       });
 
@@ -80,19 +68,18 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
             const total = mRecords.reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
             const paid = mRecords.filter(r => r.status === "Paid" || r.status === "Installment").reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
             const pending = mRecords.filter(r => r.status === "Pending").reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
-            return { month: m, total: total || (totalMembers * 5000), paid: paid || (totalMembers * 5000), pending: pending || 0 };
-          }).filter(item => item.total > 0);
-          
-          dynamicBreakdown[yr] = grouped.length > 0 ? grouped : getDefaultBreakdown(yr, totalMembers);
-        } else {
-          dynamicBreakdown[yr] = getDefaultBreakdown(yr, totalMembers);
+            return mRecords.length > 0 ? { month: m, total, paid, pending } : null;
+          }).filter(Boolean);
+
+          dynamicBreakdown[yr] = grouped;
         }
       });
 
       setMonthlySavingsBreakdown(dynamicBreakdown);
-    })
-    .catch(() => {});
-  };
+    }).catch((error) => {
+      setDataError(error.response?.data?.message || error.message || "Unable to load dashboard data.");
+    });
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -101,7 +88,7 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     const handleDataUpdate = () => fetchDashboardData();
     window.addEventListener("dataUpdated", handleDataUpdate);
     return () => window.removeEventListener("dataUpdated", handleDataUpdate);
-  }, [selectedYear]);
+  }, [fetchDashboardData]);
 
   const currentYearSavings = monthlySavingsBreakdown[selectedYear] || [];
   const totalYearAmount = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
@@ -114,7 +101,12 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
 
   return (
     <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
-      
+      {dataError && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Dashboard data could not be loaded: {dataError}
+        </div>
+      )}
+
       {/* 1. Top 5 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-[#e0f2fe] border border-[#bae6fd] rounded-2xl p-5 shadow-sm">
@@ -262,7 +254,9 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
             </div>
 
             <div className="h-56 flex items-end justify-between border-b border-slate-200 pb-2 px-2 gap-2 pt-4">
-              {currentYearSavings.map((item, idx) => {
+              {currentYearSavings.length === 0 ? (
+                <p className="w-full text-center text-slate-400">No savings records for {selectedYear}.</p>
+              ) : currentYearSavings.map((item, idx) => {
                 const paidHeightPct = maxMonthValue > 0 ? Math.round((item.paid / maxMonthValue) * 100) : 0;
                 const pendingHeightPct = maxMonthValue > 0 ? Math.round((item.pending / maxMonthValue) * 100) : 0;
 
