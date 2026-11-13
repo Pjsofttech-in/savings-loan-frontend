@@ -8,13 +8,11 @@ export default function ShareList({ onStartShares }) {
   
   // Advanced Filter states
   const [searchQuery, setSearchQuery] = useState("");
-  const [yearFilter, setYearFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [modeFilter, setModeFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [bankFilter, setBankFilter] = useState("All");
   const [paymentBankFilter, setPaymentBankFilter] = useState("All");
-  const [dueDateFilter, setDueDateFilter] = useState("");
   const [timeframeFilter, setTimeframeFilter] = useState("All");
 
   // Modal State for Share Range (i)
@@ -28,12 +26,9 @@ export default function ShareList({ onStartShares }) {
   const [entriesPerPage, setEntriesPerPage] = useState(5);
 
   const fetchSharesAndMembers = useCallback(() => {
-    setLoading(true);
     const params = new URLSearchParams();
-    if (yearFilter !== "All") params.append("year", yearFilter);
     if (statusFilter !== "All") params.append("status", statusFilter);
     if (modeFilter !== "All") params.append("mode", modeFilter);
-    if (dueDateFilter) params.append("dueDate", dueDateFilter);
 
     Promise.all([
       apiClient.get(`/api/shares?${params.toString()}`).catch(() => ({ data: [] })),
@@ -72,7 +67,7 @@ export default function ShareList({ onStartShares }) {
         setShares(dynamicShares);
       })
       .finally(() => setLoading(false));
-  }, [yearFilter, statusFilter, modeFilter, dueDateFilter]);
+  }, [statusFilter, modeFilter]);
 
   useEffect(() => {
     fetchSharesAndMembers();
