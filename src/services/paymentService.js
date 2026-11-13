@@ -24,7 +24,11 @@ async function request(path, options = {}) {
       );
     }
     if (error.response.status === 413) {
-      throw new Error("Uploaded file is too large. Each document must be 10 MB or smaller.", { cause: error });
+      throw new Error(
+        "The registration upload exceeds the request-size limit. Use smaller documents and try again. " +
+          "If the files are already small, the server or Nginx upload-size limit must be increased by the administrator.",
+        { cause: error },
+      );
     }
 
     const responseData = error.response.data || {};

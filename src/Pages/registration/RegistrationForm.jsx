@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { FormField, SelectField, FormSection } from "./RegistrationFields";
-import { completeMemberRegistration } from "../../services/paymentService";
+import { completeMemberRegistration, validateDocumentFile } from "../../services/paymentService";
 import { updateMember } from "../../services/memberService";
 import { getRegistrationSettings, hydrateRegistrationSettings } from "../../services/settingsService";
 
@@ -169,6 +169,22 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
     if (!form.personal.nomineeName) newErrors.nomineeName = "Nominee required.";
     if (!editingMember && (!form.personal.password || form.personal.password.length < 8)) newErrors.password = "Min 8 chars required.";
     if (!editingMember && !documentFile) newErrors.document = "Document required.";
+
+    const documentFiles = [
+      { file: documentFile, label: "Member document", field: "document" },
+      { file: witnessDocFile, label: "Witness 1 document", field: "witness1Document" },
+      { file: witness2DocFile, label: "Witness 2 document", field: "witness2Document" },
+    ];
+    let totalDocumentBytes = 0;
+    documentFiles.forEach(({ file, label, field }) => {
+      if (!file) return;
+      totalDocumentBytes += file.size;
+      const fileError = validateDocumentFile(file, label);
+      if (fileError) newErrors[field] = fileError;
+    });
+    if (totalDocumentBytes > 25 * 1024 * 1024) {
+      newErrors.documentSize = "The combined documents exceed 25 MB. Reduce their size before submitting.";
+    }
     
     if (form.personal.paymentStatus !== "Pending" && !form.personal.destinationBank) {
       newErrors.destinationBank = "Receiving bank required.";
@@ -325,14 +341,18 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
             <SelectField id="document-type" label="ID Proof Type *" value={documentType} onChange={(val) => setDocumentType(val)} options={ID_DOCUMENT_OPTIONS} required />
             <div>
               <label htmlFor="verification-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload {documentType} {!editingMember && "*"}</label>
-              <input 
+              <input
                 id="verification-doc" 
                 type="file" 
-                accept=".pdf,.jpg,.jpeg,.png" 
-                onChange={(e) => setDocumentFile(e.target.files[0])} 
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(e) => {
+                  setDocumentFile(e.target.files[0] || null);
+                  setErrors((previous) => ({ ...previous, document: null, documentSize: null }));
+                }}
                 className="max-w-xs text-xs text-slate-600 bg-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-teal-50 file:text-teal-700 file:font-semibold border border-slate-300 rounded p-1 cursor-pointer" 
               />
               {errors.document && <p className="text-red-500 text-[10px] mt-0.5">{errors.document}</p>}
+              {errors.documentSize && <p className="text-red-500 text-[10px] mt-0.5">{errors.documentSize}</p>}
             </div>
           </div>
         </FormSection>
@@ -353,13 +373,17 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
               <div>
                 <label htmlFor="witness1-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload Witness 1 ID (PDF/Image)</label>
-                <input 
+                <input
                   id="witness1-doc" 
                   type="file" 
-                  accept=".pdf,.jpg,.jpeg,.png" 
-                  onChange={(e) => setWitnessDocFile(e.target.files[0])} 
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onChange={(e) => {
+                    setWitnessDocFile(e.target.files[0] || null);
+                    setErrors((previous) => ({ ...previous, witness1Document: null, documentSize: null }));
+                  }}
                   className="max-w-xs text-xs text-slate-600 bg-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-teal-50 file:text-teal-700 file:font-semibold border border-slate-300 rounded p-1 cursor-pointer" 
                 />
+                {errors.witness1Document && <p className="text-red-500 text-[10px] mt-0.5">{errors.witness1Document}</p>}
               </div>
             </div>
           </div>
@@ -377,13 +401,17 @@ export default function RegistrationForm({ editingMember = null, onCancelEdit, o
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
               <div>
                 <label htmlFor="witness2-doc" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Upload Witness 2 ID (PDF/Image)</label>
-                <input 
+                <input
                   id="witness2-doc" 
                   type="file" 
-                  accept=".pdf,.jpg,.jpeg,.png" 
-                  onChange={(e) => setWitness2DocFile(e.target.files[0])} 
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onChange={(e) => {
+                    setWitness2DocFile(e.target.files[0] || null);
+                    setErrors((previous) => ({ ...previous, witness2Document: null, documentSize: null }));
+                  }}
                   className="max-w-xs text-xs text-slate-600 bg-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-teal-50 file:text-teal-700 file:font-semibold border border-slate-300 rounded p-1 cursor-pointer" 
                 />
+                {errors.witness2Document && <p className="text-red-500 text-[10px] mt-0.5">{errors.witness2Document}</p>}
               </div>
             </div>
           </div>
