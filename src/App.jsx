@@ -18,6 +18,9 @@ import AddMember from "./Components/AddMember";
 import MonthlySavingForm from "./Pages/Savings/MonthlySavingForm";
 import MonthlySavingDashboard from "./Pages/Savings/MonthlySavingDashboard";
 import MonthlySavingList from "./Pages/Savings/monthlySavinglist";
+import LoanDashboard from "./Pages/Loans/LoanDashboard";
+import LoanForm from "./Pages/Loans/LoanForm";
+import LoanList from "./Pages/Loans/LoanList";
 
 import Settings from "./Pages/Settings";
 
@@ -26,6 +29,7 @@ function App() {
   const [regSlide, setRegSlide] = useState("dashboard");
   const [sharesSlide, setSharesSlide] = useState("dashboard"); // "dashboard" | "form" | "list"
   const [savingsSlide, setSavingsSlide] = useState("dashboard"); // "dashboard" | "form" | "list"
+  const [loanSlide, setLoanSlide] = useState("dashboard");
   
   // Member Edit State
   const [editingMember, setEditingMember] = useState(null);
@@ -60,6 +64,7 @@ function App() {
           }
           if (view === "shares") setSharesSlide("dashboard");
           if (view === "savings") setSavingsSlide("dashboard");
+          if (view === "loans") setLoanSlide("dashboard");
         }} 
       />
 
@@ -146,6 +151,29 @@ function App() {
                   onStartSaving={() => setSavingsSlide("form")} 
                 />
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Loan Management */}
+        {activeView === "loans" && (
+          <div className="flex flex-col min-h-full">
+            <div className="workflow-header bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between shadow-sm sticky top-[76px] z-20">
+              <div className="workflow-tabs flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button onClick={() => setLoanSlide("dashboard")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${loanSlide === "dashboard" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Dashboard</button>
+                <button onClick={() => setLoanSlide("form")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${loanSlide === "form" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Loan Application</button>
+                <button onClick={() => setLoanSlide("list")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${loanSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Loan Records</button>
+              </div>
+            </div>
+            <div className="workflow-content max-w-[1400px] mx-auto w-full flex-1 p-6">
+              {loanSlide === "dashboard" && (
+                <LoanDashboard
+                  onStartLoan={() => setLoanSlide("form")}
+                  onShowList={() => setLoanSlide("list")}
+                />
+              )}
+              {loanSlide === "form" && <LoanForm onSuccess={() => setLoanSlide("list")} />}
+              {loanSlide === "list" && <LoanList onStartLoan={() => setLoanSlide("form")} />}
             </div>
           </div>
         )}

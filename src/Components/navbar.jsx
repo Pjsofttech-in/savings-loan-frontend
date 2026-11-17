@@ -8,6 +8,7 @@ function Navbar({ activeView, onNavigate }) {
     { id: "registration", label: "Member Registration" },
     { id: "shares", label: "Shares Application" },
     { id: "savings", label: "Monthly Savings" },
+    { id: "loans", label: "Loans" },
     { id: "settings", label: "Settings" },
   ];
   const profileRef = useRef(null);

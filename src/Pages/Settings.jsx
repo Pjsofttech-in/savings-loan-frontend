@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getRegistrationSettings,
   saveRegistrationSettings,
+  saveLoanSettings as persistLoanSettings,
   hydrateRegistrationSettings,
 } from "../services/settingsService";
 import { deleteMember, fetchMembers } from "../services/memberService";
@@ -12,6 +13,7 @@ const catalogs = [
   { key: "years", title: "Membership Years", singular: "Membership Year", icon: "M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" },
   { key: "shareTypes", title: "Share Types", singular: "Share Type", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 5 9 5 9-5" },
   { key: "bankAccount", title: "Bank Account", singular: "Bank Account", icon: "M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11" },
+  { key: "loanSettings", title: "Loan Settings", singular: "Loan Setting", icon: "M4 5h16M4 10h16M4 15h10m-9 5h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z" },
   { key: "members", title: "Members", singular: "Member", icon: "M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3a4 4 0 0 1 0 7m2 2a4 4 0 0 1 2 4" },
 ];
 
@@ -49,6 +51,8 @@ export default function Settings() {
   const [message, setMessage] = useState("");
   const [members, setMembers] = useState([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+  const [loanSettings, setLoanSettings] = useState(() => settings.loanSettings);
+  const [isSavingLoanSettings, setIsSavingLoanSettings] = useState(false);
 
   // Member Types with Fee structured state
   const [memberTypesWithFee, setMemberTypesWithFee] = useState(() => {
@@ -92,12 +96,13 @@ export default function Settings() {
   const isMemberList = activeKey === "members";
   const isBankAccount = activeKey === "bankAccount";
   const isMemberTypes = activeKey === "memberTypes";
+  const isLoanSettings = activeKey === "loanSettings";
   
   const options = isMemberList 
     ? members 
     : isMemberTypes
     ? memberTypesWithFee
-    : (!isBankAccount && Array.isArray(settings[activeKey])) 
+    : (!isBankAccount && !isLoanSettings && Array.isArray(settings[activeKey]))
     ? settings[activeKey] 
     : [];
   
@@ -122,6 +127,7 @@ export default function Settings() {
   useEffect(() => {
     hydrateRegistrationSettings().then((serverSettings) => {
       setSettings(serverSettings);
+      setLoanSettings(serverSettings.loanSettings);
       const types = serverSettings.memberTypesWithFee;
       if (Array.isArray(types)) setMemberTypesWithFee(types);
       if (Array.isArray(serverSettings.bankAccounts)) setBankAccounts(serverSettings.bankAccounts);
@@ -271,6 +277,27 @@ export default function Settings() {
     updateCatalog(activeKey, options.filter((item) => item !== option));
   };
 
+  const handleSaveLoanSettings = async (event) => {
+    event.preventDefault();
+    setIsSavingLoanSettings(true);
+    setMessage("");
+    try {
+      const nextSettings = await persistLoanSettings({
+        ...loanSettings,
+        dailyPenaltyRatePercent: Number(loanSettings.dailyPenaltyRatePercent) || 0,
+        penaltyGraceDays: Number(loanSettings.penaltyGraceDays) || 0,
+        reminderAfterDays: Number(loanSettings.reminderAfterDays) || 0,
+      });
+      setSettings(nextSettings);
+      setLoanSettings(nextSettings.loanSettings);
+      setMessage("Loan and overdue reminder settings saved.");
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Could not save loan settings. Check the server connection and try again.");
+    } finally {
+      setIsSavingLoanSettings(false);
+    }
+  };
+
   return (
     <main className="max-w-[1400px] mx-auto p-4 lg:p-6 font-sans">
       <div className={`settings-workspace ${menuExpanded ? "settings-menu-expanded" : ""}`}>
@@ -312,7 +339,75 @@ export default function Settings() {
 
         <section key={activeKey} className="settings-category-content rounded-lg border border-slate-200 bg-white p-4 sm:p-5" aria-label={activeCatalog.title}>
           
-          {isBankAccount ? (
+          {isLoanSettings ? (
+            <form onSubmit={handleSaveLoanSettings} className="max-w-3xl space-y-5">
+              <div>
+                <h3 className="text-base font-extrabold text-[#102a43] m-0">Loan &amp; Overdue Policy</h3>
+                <p className="text-xs text-slate-500 mt-1">Configure how daily overdue penalties are assessed and when staff reminders appear.</p>
+              </div>
+              {message && <p className="text-xs font-semibold text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200" role="status">{message}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="loan-penalty-basis" className="block text-xs font-bold text-slate-700 mb-1">Penalty based on</label>
+                  <select
+                    id="loan-penalty-basis"
+                    value={loanSettings.penaltyBasis}
+                    onChange={(event) => setLoanSettings((current) => ({ ...current, penaltyBasis: event.target.value }))}
+                    className="w-full h-10 px-3 border border-slate-300 rounded-lg bg-white text-sm text-slate-800"
+                  >
+                    <option value="installment">Overdue loan installment</option>
+                    <option value="monthlySavings">Member monthly saving contribution</option>
+                    <option value="sharePrice">Member share price total</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="loan-daily-rate" className="block text-xs font-bold text-slate-700 mb-1">Penalty rate per overdue day (%)</label>
+                  <input
+                    id="loan-daily-rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={loanSettings.dailyPenaltyRatePercent}
+                    onChange={(event) => setLoanSettings((current) => ({ ...current, dailyPenaltyRatePercent: event.target.value }))}
+                    className="w-full h-10 px-3 border border-slate-300 rounded-lg bg-white text-sm text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="loan-penalty-grace" className="block text-xs font-bold text-slate-700 mb-1">Penalty grace period (days)</label>
+                  <input
+                    id="loan-penalty-grace"
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={loanSettings.penaltyGraceDays}
+                    onChange={(event) => setLoanSettings((current) => ({ ...current, penaltyGraceDays: event.target.value }))}
+                    className="w-full h-10 px-3 border border-slate-300 rounded-lg bg-white text-sm text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="loan-reminder-days" className="block text-xs font-bold text-slate-700 mb-1">Overdue reminder after (days)</label>
+                  <input
+                    id="loan-reminder-days"
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={loanSettings.reminderAfterDays}
+                    onChange={(event) => setLoanSettings((current) => ({ ...current, reminderAfterDays: event.target.value }))}
+                    className="w-full h-10 px-3 border border-slate-300 rounded-lg bg-white text-sm text-slate-800"
+                  />
+                </div>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+                For each overdue installment, penalty = selected basis amount × daily rate ÷ 100 × overdue days. A 0% rate disables penalty accrual; overdue reminders are still shown after the configured reminder period.
+              </div>
+              <div className="flex justify-end">
+                <button type="submit" disabled={isSavingLoanSettings} className="h-10 px-5 rounded-lg bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-bold">
+                  {isSavingLoanSettings ? "Saving..." : "Save Loan Settings"}
+                </button>
+              </div>
+            </form>
+          ) : isBankAccount ? (
             <div className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
