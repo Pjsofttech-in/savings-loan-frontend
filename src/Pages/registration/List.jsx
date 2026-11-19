@@ -2,8 +2,20 @@
 import { useState, useEffect, useRef } from "react";
 import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
+import { fetchLoans } from "../../services/loanService";
 import apiClient from "../../services/apiClient";
 import { getRegistrationSettings } from "../../services/settingsService";
+import { loanStatus, outstandingAmount } from "../Loans/loanUtils";
+
+const PAID_STATUSES = new Set(["Paid", "Complete", "Installment"]);
+
+function memberIdOf(record) {
+  return record?.memberId ?? record?.member?.id;
+}
+
+function formatCurrency(value) {
+  return `₹${(Number(value) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
 
 const titleCase = (value) => typeof value === "string"
   ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
@@ -32,20 +44,56 @@ export default function List({ onEditMember }) {
 
   const latestRequest = useRef(0);
 
-  const buildRecords = (memberRecords, shareRecords) => {
+  const buildRecords = (memberRecords, shareRecords, savingsRecords, loanRecords) => {
     const membersList = Array.isArray(memberRecords) ? memberRecords : [];
     const sharesList = Array.isArray(shareRecords) ? shareRecords : [];
+    const savingsList = Array.isArray(savingsRecords) ? savingsRecords : [];
+    const loansList = Array.isArray(loanRecords) ? loanRecords : [];
 
     const sharesByMemberId = new Map();
-    sharesList.forEach((share) => {
-      const memberId = share?.memberId ?? share?.member?.id;
-      if (memberId !== undefined && memberId !== null && !sharesByMemberId.has(String(memberId))) {
-        sharesByMemberId.set(String(memberId), share);
+    const totalsByMemberId = new Map();
+    const totalsForMember = (memberId) => {
+      const key = String(memberId);
+      if (!totalsByMemberId.has(key)) {
+        totalsByMemberId.set(key, { monthlySavings: 0, capital: 0, loanBalance: 0, pendingLoan: 0 });
       }
+      return totalsByMemberId.get(key);
+    };
+
+    sharesList.forEach((share) => {
+      const memberId = memberIdOf(share);
+      if (memberId === undefined || memberId === null) return;
+      if (!sharesByMemberId.has(String(memberId))) sharesByMemberId.set(String(memberId), share);
+      if (!PAID_STATUSES.has(String(share.paymentStatus || share.status || "Complete"))) return;
+      const quantity = Number(share.numberOfShares || share.quantity) || 1;
+      const faceValue = Number(share.faceValue) || 500;
+      totalsForMember(memberId).capital += Number(share.paymentAmount || share.totalAmount) || quantity * faceValue;
+    });
+
+    savingsList.forEach((saving) => {
+      const memberId = memberIdOf(saving);
+      if (memberId === undefined || memberId === null) return;
+      if (!PAID_STATUSES.has(String(saving.status || saving.paymentStatus || "Paid"))) return;
+      totalsForMember(memberId).monthlySavings += Number(saving.amountMonthly || saving.amount) || 0;
+    });
+
+    loansList.forEach((loan) => {
+      const memberId = memberIdOf(loan);
+      if (memberId === undefined || memberId === null) return;
+      const totals = totalsForMember(memberId);
+      const status = loanStatus(loan);
+      if (["Approved", "Active"].includes(status)) totals.loanBalance += outstandingAmount(loan);
+      if (status === "Pending") totals.pendingLoan += Number(loan.amount) || 0;
     });
 
     return membersList.map((member) => {
       const share = sharesByMemberId.get(String(member.id)) || {};
+      const totals = totalsByMemberId.get(String(member.id)) || {
+        monthlySavings: 0,
+        capital: 0,
+        loanBalance: 0,
+        pendingLoan: 0,
+      };
       const settings = getRegistrationSettings();
       const memberCategory = share.shareType || member.memberType || "General";
       const feeStructure = (settings.memberTypesWithFee || []).find(
@@ -57,6 +105,8 @@ export default function List({ onEditMember }) {
       const monthlyAmount = feeStructure
         ? Number(feeStructure.monthlyFee) || 0
         : Number(member.monthlyFee ?? share.monthlySaving) || 0;
+      const totalMemberFee = shareAmount;
+      const netAmount = totalMemberFee + totals.monthlySavings + totals.capital - totals.loanBalance;
       const status = share.paymentStatus || member.paymentStatus || "Complete";
       const memberStatus = member.status || "Active";
       const category = memberCategory;
@@ -68,9 +118,15 @@ export default function List({ onEditMember }) {
         memberId: member.id || "-",
         shareAmount,
         memberFee: shareAmount,
+        totalMemberFee,
         monthlyAmount,
         monthlyFee: monthlyAmount,
         totalSaving: shareAmount + monthlyAmount,
+        monthlySavings: totals.monthlySavings,
+        capital: totals.capital,
+        loanBalance: totals.loanBalance,
+        pendingLoan: totals.pendingLoan,
+        netAmount,
         mobile: member.mobile || "",
         address: member.address || member.street || "",
         category,
@@ -93,12 +149,17 @@ export default function List({ onEditMember }) {
       const requestId = ++latestRequest.current;
       setRecordsError("");
       try {
-        const [memberRecords, shareRecords] = await Promise.all([
+        const [memberRecords, shareRecords, savingsResponse, loanRecords] = await Promise.all([
           fetchMembers(),
-          fetchShareAllocations().catch(() => []),
+          fetchShareAllocations(),
+          apiClient.get("/api/savings"),
+          fetchLoans(),
         ]);
+        if (!Array.isArray(savingsResponse.data)) {
+          throw new Error("The savings service returned an invalid records list.");
+        }
         if (!isMounted || requestId !== latestRequest.current) return;
-        setRecords(buildRecords(memberRecords, shareRecords));
+        setRecords(buildRecords(memberRecords, shareRecords, savingsResponse.data, loanRecords));
       } catch (error) {
         if (isMounted && requestId === latestRequest.current) {
           setRecordsError(error.message || "Failed to load records.");
@@ -255,16 +316,21 @@ export default function List({ onEditMember }) {
     return true;
   });
 
-  const totalPaid = records
-    .filter((record) => record.paymentStatus === "Complete" || record.paymentStatus === "Paid")
-    .reduce((total, record) => total + (Number(String(record.amount).replace(/[^0-9.-]+/g, "")) || 0), 0);
-  
-  const totalPending = records
-    .filter((record) => record.paymentStatus === "Pending")
-    .reduce((total, record) => total + (Number(String(record.amount).replace(/[^0-9.-]+/g, "")) || 0), 0);
-
-  const totalMonthly = filteredRecords.reduce((total, record) => total + (Number(record.monthlyAmount) || 0), 0);
-  const totalYearly = totalMonthly * 12;
+  const summaryTotals = records.reduce((totals, record) => ({
+    totalMemberFee: totals.totalMemberFee + (Number(record.totalMemberFee) || 0),
+    monthlySavings: totals.monthlySavings + (Number(record.monthlySavings) || 0),
+    capital: totals.capital + (Number(record.capital) || 0),
+    loanBalance: totals.loanBalance + (Number(record.loanBalance) || 0),
+    pendingLoan: totals.pendingLoan + (Number(record.pendingLoan) || 0),
+    netAmount: totals.netAmount + (Number(record.netAmount) || 0),
+  }), {
+    totalMemberFee: 0,
+    monthlySavings: 0,
+    capital: 0,
+    loanBalance: 0,
+    pendingLoan: 0,
+    netAmount: 0,
+  });
 
   const rawM = selectedMember ? (selectedMember.rawMember || selectedMember) : null;
 
@@ -354,23 +420,20 @@ export default function List({ onEditMember }) {
       </div>
 
       {/* Summary Badges */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
-          <span className="text-slate-500 uppercase font-bold">Total Collected:</span>
-          <span className="text-sm font-extrabold text-emerald-700">₹{totalPaid}</span>
-        </div>
-        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
-          <span className="text-slate-500 uppercase font-bold">Total Pending:</span>
-          <span className="text-sm font-extrabold text-amber-600">₹{totalPending}</span>
-        </div>
-        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
-          <span className="text-slate-500 uppercase font-bold">Total Monthly:</span>
-          <span className="text-sm font-extrabold text-teal-700">₹{totalMonthly}</span>
-        </div>
-        <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-2">
-          <span className="text-slate-500 uppercase font-bold">Total Yearly:</span>
-          <span className="text-sm font-extrabold text-sky-700">₹{totalYearly}</span>
-        </div>
+      <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        {[
+          ["Total Member Fee", summaryTotals.totalMemberFee, "text-emerald-700"],
+          ["Monthly Savings", summaryTotals.monthlySavings, "text-teal-700"],
+          ["Capital", summaryTotals.capital, "text-sky-700"],
+          ["Loan Balance", summaryTotals.loanBalance, "text-amber-700"],
+          ["Pending Loan", summaryTotals.pendingLoan, "text-orange-700"],
+          ["Net Amount", summaryTotals.netAmount, "text-indigo-700"],
+        ].map(([label, amount, color]) => (
+          <div key={label} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold shadow-2xs">
+            <span className="text-slate-500">{label}:</span>
+            <span className={`text-sm font-extrabold ${color}`}>{formatCurrency(amount)}</span>
+          </div>
+        ))}
       </div>
 
       {/* Professional Clean Table */}

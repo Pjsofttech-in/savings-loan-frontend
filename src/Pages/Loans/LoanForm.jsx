@@ -73,16 +73,10 @@ export default function LoanForm({ onSuccess }) {
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-4 font-sans">
-      <div>
-        <p className="m-0 text-[10px] font-extrabold uppercase tracking-widest text-teal-700">Loan Application</p>
-        <h1 className="m-0 text-xl font-black text-[#102a43]">Create a loan record</h1>
-        <p className="m-0 mt-1 text-xs text-slate-500">Applications start as Pending; approve them from Loan Records to begin repayment tracking.</p>
-      </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{error}</p>}
       {success && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">{success}</p>}
       <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <section>
-          <h2 className="mb-4 border-b border-slate-200 pb-2 text-sm font-extrabold text-[#102a43]">Applicant and loan details</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block text-xs font-bold text-slate-700">
               Member *

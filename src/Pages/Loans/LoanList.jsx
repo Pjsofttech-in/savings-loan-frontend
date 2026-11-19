@@ -4,7 +4,6 @@ import {
   fetchLoanPayments,
   fetchLoans,
   recordLoanPayment,
-  updateLoanStatus,
 } from "../../services/loanService";
 import { getRegistrationSettings } from "../../services/settingsService";
 import { daysBetweenDates, isLoanOverdue, loanStatus, localDateString, money, outstandingAmount } from "./loanUtils";
@@ -16,7 +15,7 @@ function errorText(error, fallback) {
   return error.response?.data?.message || error.message || fallback;
 }
 
-export default function LoanList({ onStartLoan }) {
+export default function LoanList() {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,6 +24,8 @@ export default function LoanList({ onStartLoan }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [dueFilter, setDueFilter] = useState("All");
+  const [applicationFrom, setApplicationFrom] = useState("");
+  const [applicationTo, setApplicationTo] = useState("");
   const [page, setPage] = useState(1);
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -89,6 +90,7 @@ export default function LoanList({ onStartLoan }) {
     const normalizedQuery = query.trim().toLowerCase();
     return loans.filter((loan) => {
       const status = loanStatus(loan);
+      if (!["Approved", "Active", "Completed"].includes(status)) return false;
       const matchesQuery = !normalizedQuery || [
         loan.loanNo,
         loan.memberName,
@@ -103,27 +105,18 @@ export default function LoanList({ onStartLoan }) {
         || (dueFilter === "Reminder due" && (Number(loan.penaltyDue) > 0
           || (overdue && overdueDays >= Number(settings.reminderAfterDays || 7))))
         || (dueFilter === "Upcoming" && !overdue && ["Approved", "Active"].includes(status) && outstandingAmount(loan) > 0);
-      return matchesQuery && matchesStatus && matchesDue;
+      const applicationDate = String(loan.applicationDate || "");
+      const matchesFrom = !applicationFrom || applicationDate >= applicationFrom;
+      const matchesTo = !applicationTo || applicationDate <= applicationTo;
+      return matchesQuery && matchesStatus && matchesDue && matchesFrom && matchesTo;
     });
-  }, [loans, query, statusFilter, dueFilter, settings]);
+  }, [loans, query, statusFilter, dueFilter, applicationFrom, applicationTo, settings]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLoans.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageLoans = filteredLoans.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const totalOutstanding = filteredLoans.reduce((sum, loan) => sum + outstandingAmount(loan), 0);
   const totalPenalty = filteredLoans.reduce((sum, loan) => sum + (Number(loan.penaltyDue) || 0), 0);
-
-  const handleStatus = async (loan, status) => {
-    setError("");
-    setNotice("");
-    try {
-      await updateLoanStatus(loan.id, status);
-      setNotice(`${loan.loanNo} marked ${status.toLowerCase()}.`);
-      await loadLoans();
-    } catch (actionError) {
-      setError(errorText(actionError, "Could not update loan status."));
-    }
-  };
 
   const handleDelete = async (loan) => {
     if (!window.confirm(`Delete ${loan.loanNo} and its payment history?`)) return;
@@ -168,15 +161,6 @@ export default function LoanList({ onStartLoan }) {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-3 font-sans">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="m-0 text-[10px] font-extrabold uppercase tracking-widest text-teal-700">Loan Management</p>
-          <h1 className="m-0 text-xl font-black text-[#102a43]">Loan Records</h1>
-          <p className="m-0 mt-1 text-xs text-slate-500">Search applications, manage approvals, record repayments and follow up on overdue installments.</p>
-        </div>
-        {onStartLoan && <button type="button" onClick={onStartLoan} className="rounded-lg bg-teal-700 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800">+ New loan</button>}
-      </div>
-
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">{notice}</p>}
 
@@ -192,16 +176,17 @@ export default function LoanList({ onStartLoan }) {
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <h2 className="mb-2 text-[11px] font-black uppercase tracking-wider text-[#102a43]">Loan Filters</h2>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6">
           <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search loan, member or purpose…" aria-label="Search loans" className="h-10 rounded-lg border border-slate-300 px-3 text-xs" />
           <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} aria-label="Filter by loan status" className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs">
-            <option>All</option><option>Pending</option><option>Approved</option><option>Active</option><option>Rejected</option><option>Completed</option>
+            <option>All</option><option>Approved</option><option>Active</option><option>Completed</option>
           </select>
           <select value={dueFilter} onChange={(event) => { setDueFilter(event.target.value); setPage(1); }} aria-label="Filter by due date" className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs">
             <option>All</option><option>Upcoming</option><option>Overdue</option><option>Reminder due</option>
           </select>
-          <button type="button" onClick={() => { setQuery(""); setStatusFilter("All"); setDueFilter("All"); setPage(1); }} className="h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700">Clear filters</button>
+          <input type="date" value={applicationFrom} onChange={(event) => { setApplicationFrom(event.target.value); setPage(1); }} aria-label="Applications from date" title="Applications from date" className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs" />
+          <input type="date" value={applicationTo} onChange={(event) => { setApplicationTo(event.target.value); setPage(1); }} aria-label="Applications to date" title="Applications to date" className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs" />
+          <button type="button" onClick={() => { setQuery(""); setStatusFilter("All"); setDueFilter("All"); setApplicationFrom(""); setApplicationTo(""); setPage(1); }} className="h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700">Clear filters</button>
         </div>
       </section>
 
@@ -238,10 +223,6 @@ export default function LoanList({ onStartLoan }) {
                     <td className="p-3"><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${status === "Completed" ? "bg-emerald-100 text-emerald-800" : status === "Rejected" ? "bg-red-100 text-red-800" : status === "Pending" ? "bg-slate-100 text-slate-700" : overdue ? "bg-amber-100 text-amber-900" : "bg-sky-100 text-sky-800"}`}>{status}</span></td>
                     <td className="p-3">
                       <div className="flex min-w-48 flex-wrap gap-1.5">
-                        {status === "Pending" && <>
-                          <button type="button" onClick={() => handleStatus(loan, "Approved")} className="rounded-md bg-emerald-700 px-2 py-1.5 text-[10px] font-bold text-white">Approve</button>
-                          <button type="button" onClick={() => handleStatus(loan, "Rejected")} className="rounded-md bg-red-700 px-2 py-1.5 text-[10px] font-bold text-white">Reject</button>
-                        </>}
                         {["Approved", "Active"].includes(status) && <button type="button" onClick={() => {
                           setError("");
                           setNotice("");

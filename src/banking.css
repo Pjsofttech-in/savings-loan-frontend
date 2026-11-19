@@ -1239,18 +1239,6 @@ body,
   box-shadow: inset 3px 0 0 #3978d0;
 }
 
-.app-content [class*="bg-teal-"] {
-  background-color: #347fd1 !important;
-}
-
-.app-content [class*="text-teal-"] {
-  color: #2878cf !important;
-}
-
-.app-content [class*="border-teal-"] {
-  border-color: #8fb5eb !important;
-}
-
 .workflow-header {
   align-items: stretch;
   flex-direction: column;

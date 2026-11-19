@@ -132,19 +132,7 @@ export default function ShareList({ onStartShares }) {
       {/* Filters Panel */}
       <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200">
         <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-black text-[#102a43] uppercase tracking-wider">Advanced Filters & Management</h3>
-            {onStartShares && (
-              <button
-                onClick={onStartShares}
-                className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm cursor-pointer"
-              >
-                + Allocate New Shares
-              </button>
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 gap-1">
             <input
               type="text"
               placeholder="Search Folio ID or Member Name..."
@@ -225,6 +213,16 @@ export default function ShareList({ onStartShares }) {
               <option value="GPay">GPay</option>
               <option value="PhonePe">PhonePe</option>
             </select>
+
+            {onStartShares && (
+              <button
+                type="button"
+                onClick={onStartShares}
+                className="h-10 w-full rounded-xl bg-teal-700 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800"
+              >
+                + Allocate New Shares
+              </button>
+            )}
           </div>
         </div>
       </div>

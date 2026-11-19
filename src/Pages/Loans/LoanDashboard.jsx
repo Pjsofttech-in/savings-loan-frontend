@@ -5,7 +5,7 @@ import { daysBetweenDates, isLoanOverdue, loanStatus, money, outstandingAmount }
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export default function LoanDashboard({ onStartLoan, onShowList }) {
+export default function LoanDashboard({ onStartLoan, onShowApplicants, onShowList }) {
   const [loans, setLoans] = useState([]);
   const [settings, setSettings] = useState(() => getRegistrationSettings().loanSettings);
   const [loading, setLoading] = useState(true);
@@ -61,11 +61,12 @@ export default function LoanDashboard({ onStartLoan, onShowList }) {
         <div>
           <p className="m-0 text-[11px] font-extrabold uppercase tracking-widest text-teal-700">Loan Management</p>
           <h1 className="m-0 text-xl font-black text-[#102a43]">Loan Portfolio</h1>
-          <p className="m-0 mt-1 text-xs text-slate-500">Applications, repayments and overdue follow-up in one place.</p>
+          <p className="m-0 mt-1 text-xs text-slate-500">Review applicants separately from approved loans and repayment records.</p>
         </div>
         <div className="flex gap-2">
+          <button type="button" onClick={onShowApplicants} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700">Review applicants</button>
           <button type="button" onClick={onShowList} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700">View loan records</button>
-          <button type="button" onClick={onStartLoan} className="rounded-lg bg-teal-700 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800">+ New loan application</button>
+          <button type="button" onClick={onStartLoan} className="rounded-lg bg-teal-700 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800">+ Loan Form</button>
         </div>
       </div>
 
@@ -135,10 +136,6 @@ export default function LoanDashboard({ onStartLoan, onShowList }) {
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div>
-            <p className="m-0 text-[10px] font-bold uppercase tracking-widest text-slate-500">Latest activity</p>
-            <h2 className="m-0 text-sm font-extrabold text-[#102a43]">Recent applications</h2>
-          </div>
           <button type="button" onClick={onShowList} className="text-xs font-bold text-teal-700">All records →</button>
         </div>
         <div className="overflow-x-auto">
