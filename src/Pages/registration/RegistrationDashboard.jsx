@@ -2,6 +2,15 @@
 import { useState, useEffect } from "react";
 import { fetchMembers } from "../../services/memberService";
 import { fetchShareAllocations } from "../../services/shareService";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const MONTHS_LIST = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -41,6 +50,9 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
   const [selectedYear, setSelectedYear] = useState(String(CURRENT_YEAR));
   const [selectedMonth, setSelectedMonth] = useState("All");
   const [monthlyTrend, setMonthlyTrend] = useState([]);
+  const [registrationDates, setRegistrationDates] = useState([]);
+  const [registrationChartPeriod, setRegistrationChartPeriod] = useState("month");
+  const [registrationChartMonth, setRegistrationChartMonth] = useState(String(new Date().getMonth()));
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState("");
 
@@ -89,10 +101,20 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
           year: { count: 0, amount: 0 },
           total: { count: members.length, amount: 0 },
         };
+        const datedRegistrations = [];
 
         members.forEach((member) => {
           const share = sharesByMemberId.get(String(member.id));
           const registrationDate = parseLocalDate(member.joiningDate || member.applicationDate || share?.applicationDate);
+          const chartRegistrationDate = parseLocalDate(
+            member.joiningDate
+              || member.applicationDate
+              || member.registrationDate
+              || member.createdAt
+              || share?.applicationDate
+              || share?.createdAt,
+          );
+          if (chartRegistrationDate) datedRegistrations.push(chartRegistrationDate);
           const registrationTime = registrationDate?.getTime();
           const fee = getFee(member, share);
           const paid = isPaid(share?.paymentStatus ?? member.paymentStatus);
@@ -135,6 +157,7 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
           }
         });
 
+        setRegistrationDates(datedRegistrations);
         setStats({
           ...periodStats,
           totalRevenue: totRev,
@@ -159,8 +182,50 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
 
   const rawMax = Math.max(...monthlyTrend.map(d => Math.max(d.total, d.paid, d.pending)), 0);
   const maxAmount = rawMax * 1.1;
-  const yearOptions = [...new Set([String(CURRENT_YEAR), String(CURRENT_YEAR - 1), selectedYear])]
+  const registrationYears = [...new Set([
+    String(CURRENT_YEAR),
+    String(CURRENT_YEAR - 1),
+    ...registrationDates.map((date) => String(date.getFullYear())),
+    selectedYear,
+  ])]
     .sort((a, b) => Number(b) - Number(a));
+  const chartMonthIndex = Number(registrationChartMonth);
+  const registrationsForYear = registrationDates.filter(
+    (date) => date.getFullYear() === Number(selectedYear),
+  );
+  const registrationChartData = registrationChartPeriod === "year"
+    ? (() => {
+      const years = registrationDates.map((date) => date.getFullYear());
+      const firstYear = years.length ? Math.min(...years) : Number(selectedYear);
+      const lastYear = years.length ? Math.max(...years) : Number(selectedYear);
+      return Array.from({ length: lastYear - firstYear + 1 }, (_, index) => {
+        const year = firstYear + index;
+        return {
+          label: String(year),
+          registrations: registrationDates.filter((date) => date.getFullYear() === year).length,
+        };
+      });
+    })()
+    : registrationChartPeriod === "day"
+      ? (() => {
+        const daysInMonth = new Date(Number(selectedYear), chartMonthIndex + 1, 0).getDate();
+        const monthRegistrations = registrationsForYear.filter(
+          (date) => date.getMonth() === chartMonthIndex,
+        );
+        return Array.from({ length: daysInMonth }, (_, index) => ({
+          label: String(index + 1),
+          registrations: monthRegistrations.filter((date) => date.getDate() === index + 1).length,
+        }));
+      })()
+      : MONTHS_LIST.map((month, index) => ({
+        label: month.slice(0, 3),
+        registrations: registrationsForYear.filter((date) => date.getMonth() === index).length,
+      }));
+  const chartRegistrationTotal = registrationChartData.reduce(
+    (total, item) => total + item.registrations,
+    0,
+  );
+  const yearOptions = registrationYears;
 
   return (
     <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
@@ -208,6 +273,77 @@ export default function RegistrationDashboard({ onStartRegistration, onShowList 
           </div>
         </div>
       </div>
+
+      <section
+        aria-label="Registration analytics"
+        className="mt-5 w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
+      >
+        <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-wide text-[#102a43]">
+              Registration Analytics
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {chartRegistrationTotal} registrations in the selected {registrationChartPeriod} view
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              aria-label="Registration chart period"
+              value={registrationChartPeriod}
+              onChange={(event) => setRegistrationChartPeriod(event.target.value)}
+              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800"
+            >
+              <option value="year">Year-wise</option>
+              <option value="month">Month-wise</option>
+              <option value="day">Day-wise</option>
+            </select>
+            <select
+              aria-label="Registration chart year"
+              value={selectedYear}
+              onChange={(event) => setSelectedYear(event.target.value)}
+              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800"
+            >
+              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+            {registrationChartPeriod === "day" && (
+              <select
+                aria-label="Registration chart month"
+                value={registrationChartMonth}
+                onChange={(event) => setRegistrationChartMonth(event.target.value)}
+                className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800"
+              >
+                {MONTHS_LIST.map((month, index) => (
+                  <option key={month} value={String(index)}>{month}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+        <div className="h-[320px] w-full" role="img" aria-label="Bar chart of registrations by selected time period">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={registrationChartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11 }}
+                interval={registrationChartPeriod === "day" ? 0 : "preserveStartEnd"}
+                angle={registrationChartPeriod === "day" ? -45 : 0}
+                textAnchor={registrationChartPeriod === "day" ? "end" : "middle"}
+                height={registrationChartPeriod === "day" ? 55 : 30}
+              />
+              <YAxis allowDecimals={false} width={36} tick={{ fontSize: 11 }} />
+              <Tooltip
+                formatter={(value) => [value, "Registrations"]}
+                labelFormatter={(label) => registrationChartPeriod === "day"
+                  ? `${MONTHS_LIST[chartMonthIndex]} ${label}, ${selectedYear}`
+                  : registrationChartPeriod === "month" ? `${label} ${selectedYear}` : label}
+              />
+              <Bar dataKey="registrations" name="Registrations" fill="#0f766e" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
 
       {/* Admissions & Revenue Comparison Analytics Graph */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
