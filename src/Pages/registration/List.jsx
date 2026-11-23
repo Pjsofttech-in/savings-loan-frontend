@@ -21,7 +21,7 @@ const titleCase = (value) => typeof value === "string"
   ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
   : value;
 
-export default function List({ onEditMember }) {
+export default function List({ onEditMember, view = "registration" }) {
   const [records, setRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [recordsError, setRecordsError] = useState("");
@@ -283,10 +283,10 @@ export default function List({ onEditMember }) {
   };
 
   const filteredRecords = records.filter((item) => {
-    if (filterPaymentStatus !== "All" && item.paymentStatus !== filterPaymentStatus) return false;
+    if (view === "financial" && filterPaymentStatus !== "All" && item.paymentStatus !== filterPaymentStatus) return false;
     if (filterMemberStatus !== "All" && item.memberStatus !== filterMemberStatus) return false;
     if (filterCategory !== "All" && item.category !== filterCategory) return false;
-    if (filterBank !== "All" && item.bank !== filterBank) return false;
+    if (view === "financial" && filterBank !== "All" && item.bank !== filterBank) return false;
 
     if (filterTimeframe !== "All") {
       const recordDate = new Date(item.date);
@@ -384,30 +384,6 @@ export default function List({ onEditMember }) {
           </select>
 
           <select
-            value={filterBank}
-            onChange={(e) => setFilterBank(e.target.value)}
-            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
-          >
-            <option value="All">Banks</option>
-            <option value="SBI">SBI</option>
-            <option value="HDFC Bank">HDFC Bank</option>
-            <option value="ICICI Bank">ICICI Bank</option>
-            <option value="Axis Bank">Axis Bank</option>
-          </select>
-
-          <select
-            value={filterPaymentStatus}
-            onChange={(e) => setFilterPaymentStatus(e.target.value)}
-            className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
-          >
-            <option value="All">Payment Statuses</option>
-            <option value="Complete">Complete</option>
-            <option value="Pending">Pending</option>
-            <option value="Failed">Failed</option>
-            <option value="Partially Paid">Partially Paid</option>
-          </select>
-
-          <select
             value={filterMemberStatus}
             onChange={(e) => setFilterMemberStatus(e.target.value)}
             className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
@@ -416,98 +392,166 @@ export default function List({ onEditMember }) {
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
+
+          {view === "financial" && (
+            <>
+              <select
+                value={filterBank}
+                onChange={(e) => setFilterBank(e.target.value)}
+                className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
+              >
+                <option value="All">Banks</option>
+                <option value="SBI">SBI</option>
+                <option value="HDFC Bank">HDFC Bank</option>
+                <option value="ICICI Bank">ICICI Bank</option>
+                <option value="Axis Bank">Axis Bank</option>
+              </select>
+
+              <select
+                value={filterPaymentStatus}
+                onChange={(e) => setFilterPaymentStatus(e.target.value)}
+                className="h-9 px-3 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 outline-none shadow-2xs"
+              >
+                <option value="All">Payment Statuses</option>
+                <option value="Complete">Complete</option>
+                <option value="Pending">Pending</option>
+                <option value="Failed">Failed</option>
+                <option value="Partially Paid">Partially Paid</option>
+              </select>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Summary Badges */}
-      <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-        {[
-          ["Total Member Fee", summaryTotals.totalMemberFee, "text-emerald-700"],
-          ["Monthly Savings", summaryTotals.monthlySavings, "text-teal-700"],
-          ["Capital", summaryTotals.capital, "text-sky-700"],
-          ["Loan Balance", summaryTotals.loanBalance, "text-amber-700"],
-          ["Pending Loan", summaryTotals.pendingLoan, "text-orange-700"],
-          ["Net Amount", summaryTotals.netAmount, "text-indigo-700"],
-        ].map(([label, amount, color]) => (
-          <div key={label} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold shadow-2xs">
-            <span className="text-slate-500">{label}:</span>
-            <span className={`text-sm font-extrabold ${color}`}>{formatCurrency(amount)}</span>
-          </div>
-        ))}
-      </div>
+      {view === "financial" && (
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          {[
+            ["Total Member Fee", summaryTotals.totalMemberFee, "text-emerald-700"],
+            ["Monthly Savings", summaryTotals.monthlySavings, "text-teal-700"],
+            ["Capital", summaryTotals.capital, "text-sky-700"],
+            ["Loan Balance", summaryTotals.loanBalance, "text-amber-700"],
+            ["Pending Loan", summaryTotals.pendingLoan, "text-orange-700"],
+            ["Net Amount", summaryTotals.netAmount, "text-indigo-700"],
+          ].map(([label, amount, color]) => (
+            <div key={label} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold shadow-2xs">
+              <span className="text-slate-500">{label}:</span>
+              <span className={`text-sm font-extrabold ${color}`}>{formatCurrency(amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Professional Clean Table */}
-      <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs bg-white">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-center">
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Member ID</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">User Name</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Category</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Bank</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Member Fee</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Monthly Fee</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Total Saving</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Member Status</th>
-              <th className="py-3 px-3 border-r border-slate-200 font-bold">Payment Status</th>
-              <th className="py-3 px-3 font-bold text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 text-center text-slate-700">
-            {filteredRecords.length > 0 ? (
-              filteredRecords.map((record, index) => (
-                <tr 
-                  key={record.id} 
+      {view === "registration" ? (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-100 text-center font-bold uppercase tracking-wider text-slate-700">
+                <th className="border-r border-slate-200 px-3 py-3">Member ID</th>
+                <th className="border-r border-slate-200 px-3 py-3">User Name</th>
+                <th className="border-r border-slate-200 px-3 py-3">Category</th>
+                <th className="border-r border-slate-200 px-3 py-3">Member Status</th>
+                <th className="px-3 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 text-center text-slate-700">
+              {filteredRecords.length > 0 ? filteredRecords.map((record, index) => (
+                <tr
+                  key={record.id}
                   onClick={() => setSelectedMember(record)}
-                  className={`hover:bg-slate-50 cursor-pointer transition ${index % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
+                  className={`cursor-pointer transition hover:bg-slate-50 ${index % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
                 >
-                  <td className="py-3.5 px-3 font-mono font-bold text-slate-600">MEM-{record.memberId}</td>
-                  <td className="py-3.5 px-3 font-bold text-[#102a43]">{titleCase(record.user)}</td>
-                  <td className="py-3.5 px-3 text-slate-600 font-medium">{titleCase(record.category)}</td>
-                  <td className="py-3.5 px-3 font-semibold text-slate-700">{titleCase(record.bank)}</td>
-                  <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.memberFee}</td>
-                  <td className="py-3.5 px-3 font-bold text-slate-800">₹{record.monthlyFee}</td>
-                  <td className="py-3.5 px-3 font-bold text-teal-700">₹{record.totalSaving}</td>
-                  
-                  <td className="py-3.5 px-3">
-                    <span className={`font-bold text-xs uppercase tracking-wider ${
-                      record.memberStatus === "Active" ? "text-teal-700" : "text-slate-500"
-                    }`}>
+                  <td className="px-3 py-3.5 font-mono font-bold text-slate-600">MEM-{record.memberId}</td>
+                  <td className="px-3 py-3.5 font-bold text-[#102a43]">{titleCase(record.user)}</td>
+                  <td className="px-3 py-3.5 font-medium text-slate-600">{titleCase(record.category)}</td>
+                  <td className="px-3 py-3.5">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${record.memberStatus === "Active" ? "text-teal-700" : "text-slate-500"}`}>
                       {titleCase(record.memberStatus)}
                     </span>
                   </td>
-
-                  <td className="py-3.5 px-3">
-                    <span className={`font-bold text-xs uppercase tracking-wider ${
-                      record.paymentStatus === "Complete" || record.paymentStatus === "Paid"
-                        ? "text-emerald-700"
-                        : "text-amber-600"
-                    }`}>
-                      {titleCase(record.paymentStatus)}
-                    </span>
-                  </td>
-
-                  {/* Table Actions: Only View button */}
-                  <td className="py-3.5 px-3 text-center">
+                  <td className="px-3 py-3.5">
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); setSelectedMember(record); }}
-                      className="px-3 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-md font-bold text-[11px] transition cursor-pointer"
+                      className="cursor-pointer rounded-md bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700 transition hover:bg-sky-100"
                     >
                       View
                     </button>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="10" className="py-10 text-center text-slate-400 font-medium">
-                  {loadingRecords ? "Loading member records..." : recordsError || "No member records found matching your filters."}
-                </td>
+              )) : (
+                <tr>
+                  <td colSpan="5" className="py-10 text-center font-medium text-slate-400">
+                    {loadingRecords ? "Loading member records..." : recordsError || "No member records found matching your filters."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-100 text-center font-bold uppercase tracking-wider text-slate-700">
+                <th className="border-r border-slate-200 px-3 py-3">Member ID</th>
+                <th className="border-r border-slate-200 px-3 py-3">User Name</th>
+                <th className="border-r border-slate-200 px-3 py-3">Bank</th>
+                <th className="border-r border-slate-200 px-3 py-3">Member Fee</th>
+                <th className="border-r border-slate-200 px-3 py-3">Monthly Fee</th>
+                <th className="border-r border-slate-200 px-3 py-3">Monthly Savings</th>
+                <th className="border-r border-slate-200 px-3 py-3">Capital</th>
+                <th className="border-r border-slate-200 px-3 py-3">Loan Balance</th>
+                <th className="border-r border-slate-200 px-3 py-3">Pending Loan</th>
+                <th className="border-r border-slate-200 px-3 py-3">Net Amount</th>
+                <th className="border-r border-slate-200 px-3 py-3">Payment Status</th>
+                <th className="px-3 py-3">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-slate-200 text-center text-slate-700">
+              {filteredRecords.length > 0 ? filteredRecords.map((record, index) => (
+                <tr
+                  key={record.id}
+                  onClick={() => setSelectedMember(record)}
+                  className={`cursor-pointer transition hover:bg-slate-50 ${index % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
+                >
+                  <td className="px-3 py-3.5 font-mono font-bold text-slate-600">MEM-{record.memberId}</td>
+                  <td className="px-3 py-3.5 font-bold text-[#102a43]">{titleCase(record.user)}</td>
+                  <td className="px-3 py-3.5 font-semibold text-slate-700">{titleCase(record.bank)}</td>
+                  <td className="px-3 py-3.5 font-bold text-teal-700">{formatCurrency(record.memberFee)}</td>
+                  <td className="px-3 py-3.5 font-bold text-slate-800">{formatCurrency(record.monthlyFee)}</td>
+                  <td className="px-3 py-3.5">{formatCurrency(record.monthlySavings)}</td>
+                  <td className="px-3 py-3.5">{formatCurrency(record.capital)}</td>
+                  <td className="px-3 py-3.5">{formatCurrency(record.loanBalance)}</td>
+                  <td className="px-3 py-3.5">{formatCurrency(record.pendingLoan)}</td>
+                  <td className="px-3 py-3.5 font-bold text-indigo-700">{formatCurrency(record.netAmount)}</td>
+                  <td className="px-3 py-3.5">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${
+                      record.paymentStatus === "Complete" || record.paymentStatus === "Paid" ? "text-emerald-700" : "text-amber-600"
+                    }`}>
+                      {titleCase(record.paymentStatus)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3.5">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSelectedMember(record); }}
+                      className="cursor-pointer rounded-md bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700 transition hover:bg-sky-100"
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan="12" className="py-10 text-center font-medium text-slate-400">
+                    {loadingRecords ? "Loading financial records..." : recordsError || "No financial records found matching your filters."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Professional Member Profile Modal (Left Purple Sidebar Reference Style) */}
       {selectedMember && (
