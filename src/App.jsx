@@ -87,7 +87,8 @@ function App() {
               <div className="workflow-tabs flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button onClick={() => { setRegSlide("dashboard"); setEditingMember(null); }} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "dashboard" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Dashboard</button>
                 <button onClick={() => setRegSlide("form")} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "form" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>2. Registration Form</button>
-                <button onClick={() => { setRegSlide("list"); setEditingMember(null); }} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>3. Members</button>
+                <button onClick={() => { setRegSlide("financial"); setEditingMember(null); }} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "financial" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>3. Financial Records</button>
+                <button onClick={() => { setRegSlide("list"); setEditingMember(null); }} className={`workflow-tab px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${regSlide === "list" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>4. Members</button>
               </div>
             </div>
             <div className="workflow-content max-w-[1400px] mx-auto w-full flex-1 p-6">
@@ -97,6 +98,15 @@ function App() {
                   editingMember={editingMember} 
                   onCancelEdit={() => { setEditingMember(null); setRegSlide("list"); }}
                   onSuccess={() => { setEditingMember(null); setRegSlide("list"); }}
+                />
+              )}
+              {regSlide === "financial" && (
+                <List
+                  view="financial"
+                  onEditMember={(member) => {
+                    setEditingMember(member);
+                    setRegSlide("form");
+                  }}
                 />
               )}
               {regSlide === "list" && (
