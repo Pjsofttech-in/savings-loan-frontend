@@ -2,6 +2,47 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatIndianCurrency } from "../utils/formHelpers";
 import apiClient from "../services/apiClient";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+const MONTHS_LIST = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const CURRENT_YEAR = new Date().getFullYear();
+
+function parseRecordDate(record) {
+  const value = record.paymentDate || record.applicationDate || record.date || record.createdAt;
+  if (typeof value !== "string") return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return null;
+
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return date;
+}
+
+function getRecordYear(record) {
+  const year = record.year || parseRecordDate(record)?.getFullYear();
+  return year ? String(year) : "";
+}
+
+function getRecordMonth(record) {
+  const month = String(record.month || "").toLowerCase();
+  const monthIndex = month
+    ? MONTHS_LIST.findIndex((name) => name.toLowerCase().startsWith(month.slice(0, 3)))
+    : -1;
+  return monthIndex >= 0 ? monthIndex : parseRecordDate(record)?.getMonth() ?? -1;
+}
+
+function getRecordAmount(record) {
+  return Number(record.amountMonthly) || Number(record.amount) || 0;
+}
 
 export default function Dashboard({ onStartRegistration, onShowUserList }) {
   const [metrics, setMetrics] = useState({
@@ -15,11 +56,11 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     pendingSavingsCount: 0,
   });
   
-  const [selectedYear, setSelectedYear] = useState("2026");
-  const [monthlySavingsBreakdown, setMonthlySavingsBreakdown] = useState({
-    "2026": [],
-    "2025": []
-  });
+  const [selectedYear, setSelectedYear] = useState(String(CURRENT_YEAR));
+  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth()));
+  const [chartPeriod, setChartPeriod] = useState("month");
+  const [sharesData, setSharesData] = useState([]);
+  const [savingsData, setSavingsData] = useState([]);
   const [dataError, setDataError] = useState("");
 
   const fetchDashboardData = useCallback(() => {
@@ -32,6 +73,8 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
       const members = Array.isArray(membersRes.data) ? membersRes.data : [];
       const shares = Array.isArray(sharesRes.data) ? sharesRes.data : [];
       const savings = Array.isArray(savingsRes.data) ? savingsRes.data : [];
+      setSharesData(shares);
+      setSavingsData(savings);
 
       const totalMembers = members.length;
       const totalSharesAllotted = shares.reduce((sum, s) => sum + (Number(s.quantity) || Number(s.numberOfShares) || 0), 0);
@@ -57,25 +100,6 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
         pendingSavingsCount,
       });
 
-      const dynamicBreakdown = { "2026": [], "2025": [] };
-      const monthsOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      
-      ["2026", "2025"].forEach(yr => {
-        const yearRecords = savings.filter(sv => String(sv.year) === yr);
-        if (yearRecords.length > 0) {
-          const grouped = monthsOrder.map(m => {
-            const mRecords = yearRecords.filter(sv => sv.month && sv.month.toLowerCase().startsWith(m.toLowerCase()));
-            const total = mRecords.reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
-            const paid = mRecords.filter(r => r.status === "Paid" || r.status === "Installment").reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
-            const pending = mRecords.filter(r => r.status === "Pending").reduce((acc, r) => acc + (Number(r.amountMonthly) || Number(r.amount) || 0), 0);
-            return mRecords.length > 0 ? { month: m, total, paid, pending } : null;
-          }).filter(Boolean);
-
-          dynamicBreakdown[yr] = grouped;
-        }
-      });
-
-      setMonthlySavingsBreakdown(dynamicBreakdown);
     }).catch((error) => {
       setDataError(error.response?.data?.message || error.message || "Unable to load dashboard data.");
     });
@@ -90,14 +114,68 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
     return () => window.removeEventListener("dataUpdated", handleDataUpdate);
   }, [fetchDashboardData]);
 
-  const currentYearSavings = monthlySavingsBreakdown[selectedYear] || [];
-  const totalYearAmount = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
-  const totalYearPaid = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.paid) || 0), 0);
-  const totalYearPending = currentYearSavings.reduce((acc, curr) => acc + (Number(curr.pending) || 0), 0);
-  
-  const maxMonthValue = currentYearSavings.length > 0 
-    ? Math.max(...currentYearSavings.map(s => Number(s.total) || 0), 20000)
-    : 20000;
+  const yearOptions = [...new Set([
+    String(CURRENT_YEAR),
+    String(CURRENT_YEAR - 1),
+    selectedYear,
+    ...sharesData.map(getRecordYear),
+    ...savingsData.map(getRecordYear),
+  ].filter(Boolean))].sort((a, b) => Number(b) - Number(a));
+  const monthIndex = Number(selectedMonth);
+  const chartCategories = chartPeriod === "year"
+    ? yearOptions.slice().sort((a, b) => Number(a) - Number(b)).map((year) => ({ key: year, label: year }))
+    : chartPeriod === "day"
+      ? Array.from(
+        { length: new Date(Number(selectedYear), monthIndex + 1, 0).getDate() },
+        (_, index) => ({ key: String(index + 1), label: String(index + 1) }),
+      )
+      : MONTHS_LIST.map((month, index) => ({ key: String(index), label: month.slice(0, 3) }));
+
+  const recordsForSelectedView = (records) => records.filter((record) => {
+    if (chartPeriod === "year") return true;
+    if (getRecordYear(record) !== selectedYear) return false;
+    if (chartPeriod === "month") return true;
+    const date = parseRecordDate(record);
+    return date?.getMonth() === monthIndex;
+  });
+  const getCategoryKey = (record) => {
+    if (chartPeriod === "year") return getRecordYear(record);
+    if (chartPeriod === "day") return String(parseRecordDate(record)?.getDate() || "");
+    return String(getRecordMonth(record));
+  };
+  const sharesInView = recordsForSelectedView(sharesData);
+  const savingsInView = recordsForSelectedView(savingsData);
+  const chartData = chartCategories.map(({ key, label }) => {
+    const shares = sharesInView.filter((record) => getCategoryKey(record) === key);
+    const savings = savingsInView.filter((record) => getCategoryKey(record) === key);
+    const total = savings.reduce((sum, record) => sum + getRecordAmount(record), 0);
+    const paid = savings
+      .filter((record) => record.status === "Paid" || record.status === "Installment")
+      .reduce((sum, record) => sum + getRecordAmount(record), 0);
+    const pending = savings
+      .filter((record) => record.status === "Pending")
+      .reduce((sum, record) => sum + getRecordAmount(record), 0);
+    return {
+      label,
+      shareCapital: shares.reduce(
+        (sum, record) => sum + (Number(record.totalAmount) || (Number(record.quantity || 1) * 1000)),
+        0,
+      ),
+      monthlySavings: total,
+      total,
+      paid,
+      pending,
+    };
+  });
+  const totalYearAmount = chartData.reduce((sum, item) => sum + item.total, 0);
+  const totalYearPaid = chartData.reduce((sum, item) => sum + item.paid, 0);
+  const totalYearPending = chartData.reduce((sum, item) => sum + item.pending, 0);
+  const selectedChartTitle = chartPeriod === "year"
+    ? "Year-wise"
+    : chartPeriod === "day"
+      ? `${MONTHS_LIST[monthIndex]} ${selectedYear}`
+      : `Month-wise (${selectedYear})`;
+  const formatCurrency = (value) => `₹${Number(value).toLocaleString("en-IN")}`;
 
   return (
     <div className="p-2 lg:p-3 max-w-[1450px] mx-auto bg-white rounded-xl border border-slate-200 shadow-sm font-sans text-xs">
@@ -186,26 +264,50 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
       </div>
 
       {/* 2. Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         
         {/* Left Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex justify-center mb-6">
-              <span className="px-6 py-2 border border-sky-200 rounded-full text-sky-900 font-bold text-xs bg-sky-50/50">
+        <div className="dashboard-chart-panel dashboard-chart-panel--capital w-full bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wide text-[#102a43]">
                 Capital Pool &amp; Monthly Savings Comparison
-              </span>
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">{selectedChartTitle} view</p>
             </div>
-            <div className="flex justify-center items-center gap-6 my-2 text-xs font-bold text-slate-700">
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block"></span> Share Capital</span>
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Monthly Savings</span>
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Pending Dues</span>
+            <div className="flex flex-wrap gap-2">
+              <select aria-label="Dashboard chart period" value={chartPeriod} onChange={(event) => setChartPeriod(event.target.value)} className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 transition-colors duration-200 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20">
+                <option value="year">Year-wise</option>
+                <option value="month">Month-wise</option>
+                <option value="day">Day-wise</option>
+              </select>
+              <select aria-label="Dashboard chart year" value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)} className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 transition-colors duration-200 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20">
+                {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+              {chartPeriod === "day" && (
+                <select aria-label="Dashboard chart month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 transition-colors duration-200 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20">
+                  {MONTHS_LIST.map((month, index) => <option key={month} value={String(index)}>{month}</option>)}
+                </select>
+              )}
             </div>
-            <div className="h-64 flex items-end justify-around border-b border-slate-200 pb-2 px-4 gap-6 pt-6">
-              <div className="w-20 bg-sky-500 rounded-t-md h-[80%] relative group flex flex-col justify-end items-center pb-2 text-white font-bold text-[11px]">{formatIndianCurrency(metrics.shareCapitalPool)}</div>
-              <div className="w-20 bg-emerald-500 rounded-t-md h-[65%] relative group flex flex-col justify-end items-center pb-2 text-white font-bold text-[11px]">{formatIndianCurrency(metrics.monthlySavingsPool)}</div>
-              <div className="w-20 bg-amber-500 rounded-t-md h-[25%] relative group flex flex-col justify-end items-center pb-2 text-white font-bold text-[11px]">{formatIndianCurrency(metrics.pendingSavings)}</div>
-            </div>
+          </div>
+          <div className="mb-3 flex flex-wrap justify-center gap-6 text-xs font-bold text-slate-700">
+            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block"></span> Share Capital</span>
+            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Monthly Savings</span>
+            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Pending Dues</span>
+          </div>
+          <div className="h-[320px] w-full" role="img" aria-label="Capital pool and monthly savings by selected time period">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={chartPeriod === "day" ? 0 : "preserveStartEnd"} angle={chartPeriod === "day" ? -45 : 0} textAnchor={chartPeriod === "day" ? "end" : "middle"} height={chartPeriod === "day" ? 55 : 30} />
+                <YAxis width={88} tick={{ fontSize: 11 }} tickFormatter={(value) => `₹${Number(value).toLocaleString("en-IN")}`} />
+                <Tooltip formatter={(value) => [formatCurrency(value)]} labelFormatter={(label) => chartPeriod === "day" ? `${MONTHS_LIST[monthIndex]} ${label}, ${selectedYear}` : chartPeriod === "month" ? `${label} ${selectedYear}` : label} />
+                <Bar dataKey="shareCapital" name="Share Capital" fill="#0ea5e9" radius={[4, 4, 0, 0]} animationBegin={0} animationDuration={700} animationEasing="ease-out" />
+                <Bar dataKey="monthlySavings" name="Monthly Savings" fill="#10b981" radius={[4, 4, 0, 0]} animationBegin={100} animationDuration={700} animationEasing="ease-out" />
+                <Bar dataKey="pending" name="Pending Dues" fill="#f59e0b" radius={[4, 4, 0, 0]} animationBegin={200} animationDuration={700} animationEasing="ease-out" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
           <div className="flex gap-4 mt-6 pt-4 border-t border-slate-100 justify-between items-center text-xs">
             <button onClick={onStartRegistration} className="font-bold text-teal-700 hover:underline cursor-pointer">+ Go to Registration Form →</button>
@@ -214,23 +316,13 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
         </div>
 
         {/* Right Vertical Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="dashboard-chart-panel dashboard-chart-panel--savings w-full bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
               <span className="px-5 py-2 border border-teal-200 rounded-full text-teal-900 font-bold text-xs bg-teal-50/60">
-                Monthly Savings ({selectedYear})
+                Monthly Savings ({selectedChartTitle})
               </span>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                <span>Year</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-300 rounded-lg bg-white text-xs outline-none font-bold text-teal-800"
-                >
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                </select>
-              </div>
+              <span className="text-xs text-slate-500">{totalYearAmount.toLocaleString("en-IN")} total savings amount</span>
             </div>
 
             <div className="grid grid-cols-3 gap-3 mb-6">
@@ -253,28 +345,17 @@ export default function Dashboard({ onStartRegistration, onShowUserList }) {
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Pending Audit</span>
             </div>
 
-            <div className="h-56 flex items-end justify-between border-b border-slate-200 pb-2 px-2 gap-2 pt-4">
-              {currentYearSavings.length === 0 ? (
-                <p className="w-full text-center text-slate-400">No savings records for {selectedYear}.</p>
-              ) : currentYearSavings.map((item, idx) => {
-                const paidHeightPct = maxMonthValue > 0 ? Math.round((item.paid / maxMonthValue) * 100) : 0;
-                const pendingHeightPct = maxMonthValue > 0 ? Math.round((item.pending / maxMonthValue) * 100) : 0;
-
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-                    <div className="absolute -top-12 bg-slate-900 text-white text-[10px] py-1 px-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
-                      {item.month}: Paid ₹{item.paid.toLocaleString("en-IN")}
-                    </div>
-                    <div className="w-full max-w-[28px] bg-slate-100 rounded-t-md flex flex-col justify-end overflow-hidden h-40 border border-slate-200/60">
-                      {item.pending > 0 && (
-                        <div className="w-full bg-amber-500 transition-all duration-500" style={{ height: `${pendingHeightPct}%` }} />
-                      )}
-                      <div className="w-full bg-teal-700 transition-all duration-500 rounded-t-sm" style={{ height: `${Math.max(paidHeightPct, 5)}%` }} />
-                    </div>
-                    <span className="text-[11px] font-bold text-slate-600 mt-2 truncate max-w-full">{item.month}</span>
-                  </div>
-                );
-              })}
+            <div className="h-[320px] w-full" role="img" aria-label="Monthly savings performance by selected time period">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={chartPeriod === "day" ? 0 : "preserveStartEnd"} angle={chartPeriod === "day" ? -45 : 0} textAnchor={chartPeriod === "day" ? "end" : "middle"} height={chartPeriod === "day" ? 55 : 30} />
+                  <YAxis width={88} tick={{ fontSize: 11 }} tickFormatter={(value) => `₹${Number(value).toLocaleString("en-IN")}`} />
+                  <Tooltip formatter={(value) => [formatCurrency(value)]} labelFormatter={(label) => chartPeriod === "day" ? `${MONTHS_LIST[monthIndex]} ${label}, ${selectedYear}` : chartPeriod === "month" ? `${label} ${selectedYear}` : label} />
+                  <Bar dataKey="paid" name="Paid Collections" fill="#0f766e" radius={[4, 4, 0, 0]} animationBegin={0} animationDuration={700} animationEasing="ease-out" />
+                  <Bar dataKey="pending" name="Pending Audit" fill="#f59e0b" radius={[4, 4, 0, 0]} animationBegin={130} animationDuration={700} animationEasing="ease-out" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
