@@ -32,16 +32,16 @@ export default function MonthlySavingList({ onStartSaving }) {
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : [];
         setSavings(data.map(item => ({
-          id: item.id ? `SAV-${item.id}` : "SAV-501",
-          memberId: item.memberId ? `MEM-${item.memberId}` : "MEM-1001",
+          id: item.id ? `SAV-${item.id}` : "SAV-UNKNOWN",
+          memberId: item.memberId ? `MEM-${item.memberId}` : "Unknown member",
           noOfMembers: item.numberOfMembers || 1,
           year: item.year || "2026",
           month: item.month || "October",
           amountMonthly: Number(item.amountMonthly || item.amount) || 0,
           totalExpected: (Number(item.amountMonthly || item.amount) || 0) * 12,
           status: item.status || item.paymentStatus || "Paid",
-          mode: item.mode || item.paymentMode || "Bank Transfer",
-          dueDate: item.dueDate || "2026-10-30"
+          mode: item.paymentMode || item.mode || "Bank Transfer",
+          dueDate: item.paymentDate || item.dueDate || ""
         })));
       })
       .catch(err => setLoadError(err.message || "Failed to load savings records."))

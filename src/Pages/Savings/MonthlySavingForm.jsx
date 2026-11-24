@@ -1,6 +1,7 @@
 ﻿// src/Pages/savings/MonthlySavingForm.jsx
 import { useState } from "react";
 import { FormField, SelectField, FormSection } from "../registration/RegistrationFields";
+import apiClient from "../../services/apiClient";
 
 const PAYMENT_STATUS_OPTIONS = ["Complete", "Pending", "Failed", "Partially Paid"];
 const PAYMENT_MODES = ["Cash", "UPI / Online", "Bank Transfer", "Cheque"];
@@ -22,18 +23,22 @@ export default function MonthlySavingForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [savingId, setSavingId] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
+    if (submitError) setSubmitError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
-    if (!form.memberId) newErrors.memberId = "Member ID is required.";
-    if (!form.numberOfMembers) newErrors.numberOfMembers = "Number of members is required.";
-    if (!form.amountMonthly) newErrors.amountMonthly = "Monthly amount is required.";
+    const numberOfMembers = Number(form.numberOfMembers);
+    const amountMonthly = Number(form.amountMonthly);
+    if (!form.memberId.trim()) newErrors.memberId = "Member ID is required.";
+    if (!Number.isInteger(numberOfMembers) || numberOfMembers <= 0) newErrors.numberOfMembers = "Enter a positive whole number.";
+    if (!Number.isFinite(amountMonthly) || amountMonthly <= 0) newErrors.amountMonthly = "Enter an amount greater than zero.";
     if (!form.paymentStatus) newErrors.paymentStatus = "Payment status is required.";
     if (!form.paymentMode) newErrors.paymentMode = "Payment mode is required.";
 
@@ -43,13 +48,28 @@ export default function MonthlySavingForm() {
     }
 
     setIsSubmitting(true);
+    setSubmitError("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      const generatedId = "SAV-" + Math.floor(100000 + Math.random() * 900000);
-      setSavingId(generatedId);
+      const response = await apiClient.post("/api/savings", {
+        memberId: form.memberId.trim(),
+        numberOfMembers,
+        year: form.year,
+        month: form.month,
+        amountMonthly,
+        paymentStatus: form.paymentStatus,
+        paymentMode: form.paymentMode,
+        sourceBank: form.sourceBank.trim(),
+        transactionId: form.transactionId.trim(),
+      });
+      setSavingId(response.data.id);
       setIsSubmitted(true);
+      window.dispatchEvent(new Event("dataUpdated"));
     } catch (error) {
-      console.error("Error submitting monthly saving:", error);
+      const message = error.response?.data?.message
+        || (typeof error.response?.data === "string" ? error.response.data : "")
+        || error.message
+        || "Could not save this monthly saving.";
+      setSubmitError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -59,8 +79,13 @@ export default function MonthlySavingForm() {
     <div className="max-w-[1400px] mx-auto font-sans space-y-3">
       {isSubmitted && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm font-bold flex items-center justify-between">
-          <span>✓ Monthly saving registered successfully. Reference ID: {savingId}</span>
-          <button onClick={() => setIsSubmitted(false)} className="text-xs underline text-emerald-700 cursor-pointer">Register Another Entry</button>
+          <span>✓ Monthly saving saved successfully. Reference ID: SAV-{savingId}</span>
+          <button type="button" onClick={() => { setIsSubmitted(false); setForm((previous) => ({ ...previous, memberId: "", amountMonthly: "", sourceBank: "", transactionId: "" })); }} className="text-xs underline text-emerald-700 cursor-pointer">Register Another Entry</button>
+        </div>
+      )}
+      {submitError && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+          Monthly saving was not saved: {submitError}
         </div>
       )}
 
